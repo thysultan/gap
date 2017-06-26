@@ -244,8 +244,8 @@ function render (xAxis, yAxis) {
 
     setTimeout(()=> {
       // -5 will remove the last 5 characters, 5 will remove next 5 characters
-      // heap.remove(5)
-      // heap.render(0, 0)
+      heap.remove(5)
+      heap.render(0, 0)
     }, 200)
   }, 200)
 })()
