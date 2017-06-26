@@ -34,7 +34,7 @@ function Buffer (size) {
   // entire buffer
   this.buff = Array(this.size = size|0)
 
-  // selection buffer
+  // selection coordinates
   this.maps = Array(0)
 
   // visible coordinates
