@@ -34,7 +34,8 @@
 		insert: insert,
 		splice: splice,
 		expand: expand,
-		render: render
+		render: render,
+    extract: extract
 	}
 
 	/**
@@ -107,6 +108,10 @@
    */
  	function expand () {
     this.buff = this.buff.slice(0, this.lead).concat(Array(this.size*=2), this.buff.slice(this.tail))
+  }
+
+  function extract () {
+    return this.buff.join('')
   }
 
   /**
