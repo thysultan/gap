@@ -44,7 +44,6 @@ function Buffer (size) {
 Buffer.prototype = {
 	forward: forward,
 	backward: backward,
-	move: move,
 	jump: jump,
 	insert: insert,
   remove: remove,
@@ -59,26 +58,6 @@ Buffer.prototype = {
 /**
  * move
  * 
- * @return {void} 
- */
-function forward () {
-	if (this.tail > 0)
-		this.buff[this.lead++] = this.buff[this.size-this.tail++]
-}
-
-/**
- * back
- * 
- * @return {void}
- */
-function backward () {
-	if (this.lead > 0)
-		this.buff[this.size-(this.tail++)-1] = this.buff[(this.lead--)-1]
-}
-
-/**
- * move
- * 
  * @param {number}
  * @return {void}
  */
@@ -87,8 +66,8 @@ function move (distance) {
 
 while (caret-- > 0)
 	distance > 0 ? 
-    this.forward() : 
-    this.backward()
+    (this.tail > 0 ? this.buff[this.lead++] = this.buff[this.size-this.tail++] : 0) :
+    (this.lead > 0 ? this.buff[this.size-(this.tail++)-1] = this.buff[(this.lead--)-1] : 0)
 }
 
 /**
