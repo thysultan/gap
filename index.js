@@ -38,12 +38,13 @@ function Buffer (size) {
   // selection coordinates
   this.maps = Array(0)
 
-  // visible coordinates
-  this.view = [0, 0]
-
-  // dimensions
+  // visible dimension
   this.width = 0
   this.height = 0
+
+  // visible coordinate
+  this.x = 0
+  this.y = 0
 }
 
 Buffer.prototype = {
@@ -191,6 +192,11 @@ function save () {
  * @todo
  *   draw from right->left, bottom->top
  *   allows for some optimizations in syntax highlighting and general rendering
+ *
+ * I think option 1. is the best modal for the most control and constant time rendering
+ * proportortional to the dimensions of the visible viewport regardless of the size
+ * of the file.
+ * 
  */
 function render (xAxis, yAxis) {
   var byte = ''
