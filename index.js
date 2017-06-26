@@ -42,8 +42,7 @@ function Buffer (size) {
 }
 
 Buffer.prototype = {
-	forward: forward,
-	backward: backward,
+	move: move,
 	jump: jump,
 	insert: insert,
   remove: remove,
@@ -62,12 +61,12 @@ Buffer.prototype = {
  * @return {void}
  */
 function move (distance) {
-	var caret = distance|0
+	var caret = distance < 0 ? ~distance+1 : distance|0
 
-while (caret-- > 0)
-	distance > 0 ? 
-    (this.tail > 0 ? this.buff[this.lead++] = this.buff[this.size-this.tail++] : 0) :
-    (this.lead > 0 ? this.buff[this.size-(this.tail++)-1] = this.buff[(this.lead--)-1] : 0)
+  while (caret-- > 0)
+  	distance > 0 ? 
+      (this.tail > 0 ? this.buff[this.lead++] = this.buff[this.size-this.tail++] : caret = 0) :
+      (this.lead > 0 ? this.buff[this.size-(this.tail++)-1] = this.buff[(this.lead--)-1] : caret = 0)
 }
 
 /**
@@ -239,15 +238,14 @@ function render (xAxis, yAxis) {
   heap.render(0, 0)
 
   setTimeout(() => {
-    heap.backward()
-    heap.backward()
+    heap.move(-2)
     heap.insert('.')
     heap.render(0, 0)
 
     setTimeout(()=> {
       // -5 will remove the last 5 characters, 5 will remove next 5 characters
-      heap.remove(5)
-      heap.render(0, 0)
+      // heap.remove(5)
+      // heap.render(0, 0)
     }, 200)
   }, 200)
 })()
