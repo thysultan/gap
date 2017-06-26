@@ -172,11 +172,31 @@ function copy () {
 
 /**
  * save
- * 
+ *
+ * @param {number} location
+ * @param {number} distance
  * @return {string}
  */
-function save () {
-  return this.buff.join('')
+function save (location, distance) {
+  var caret = location|0
+  var travel = distance|0
+  var output = ''
+
+  if (this.lead > 0)
+    while (caret < this.lead)
+      if (travel > 0)
+        output += this.buff[(travel--, caret++)]
+      else
+        break
+
+  if (this.tail > 0 && (caret = this.size-this.tail) > 0)
+    while (caret < this.size)
+      if (travel > 0)
+        output += this.buff[(travel--, caret++)]
+      else
+        break
+
+  return output
 }
 
 /**
@@ -219,8 +239,8 @@ function render (xAxis, yAxis) {
   var buff = this.buff
   var lead = this.lead
   var tail = this.tail
-  var length = buff.length
-  var size = lead
+  var size = this.size
+  var length = lead
 
   var line = lineHeight
   var space = byteBlock
@@ -252,11 +272,11 @@ function render (xAxis, yAxis) {
       width = x
 
     // eof
-    if (i === size) {
+    if (i === length) {
       if (tail === 0 || gap++ > 0)
         break
       else
-        i = (size = length)-tail
+        i = (length = size)-tail
     }
 
     // syntax highlighting in this case becomes much cheaper than an array of strings data-structure
@@ -306,9 +326,9 @@ function render (xAxis, yAxis) {
 
     setTimeout(()=> {
       // -5 will remove the last 5 characters, 5 will remove next 5 characters
-      heap.remove(5)
-      heap.render(0, 0)
-      console.log(heap.save(), heap.buff)
+      // heap.remove(5)
+      heap.render(0)
+      console.log(heap.save(0, heap.lead+heap.tail), heap.buff)
     }, 200)
   }, 200)
 })()
