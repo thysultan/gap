@@ -182,6 +182,15 @@ function save () {
  *
  * 2. for the most part the same as 1. but instead of just grow the canvas as needed
  *    let the native runtime handle scroll, and only update the parts of visible viewport like 1.
+ *
+ * 3. potentially the fastest render method for small insert/delete ops be a 1-1 binding, 
+ *     insert->draw insertion
+ *     delete->create insertion
+ *    but that involes alot of bookkeeping to do syntax highlighting in canvas
+ *
+ * @todo
+ *   draw from right->left, bottom->top
+ *   allows for some optimizations in syntax highlighting and general rendering
  */
 function render (xAxis, yAxis) {
   var byte = ''
@@ -258,7 +267,7 @@ function render (xAxis, yAxis) {
   this.width = width|0
   this.height = height|0
 
-   console.log(this.width, this.height)
+  console.log(this.width, this.height)
 }
 
 (function demo(){
