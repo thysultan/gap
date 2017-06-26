@@ -29,35 +29,35 @@ var tabSize = 2
  * @param {number} size
  */
 function Buffer (size) {
-  this.lead = 0
-  this.tail = 0
+	this.lead = 0
+	this.tail = 0
 
-  // entire buffer
-  this.buff = Array(this.size = size|0)
+	// entire buffer
+	this.buff = Array(this.size = size|0)
 
-  // selection coordinates
-  this.maps = Array(0)
+	// selection coordinates
+	this.maps = Array(0)
 
-  // visible dimension
-  this.width = 0
-  this.height = 0
+	// visible dimension
+	this.width = 0
+	this.height = 0
 
-  // visible coordinate
-  this.x = 0
-  this.y = 0
+	// visible coordinate
+	this.x = 0
+	this.y = 0
 }
 
 Buffer.prototype = {
 	move: move,
 	jump: jump,
 	insert: insert,
-  remove: remove,
+	remove: remove,
 	fill: fill,
 	expand: expand,
-  select: select,
-  copy: copy,
-  save: save,
-  render: render
+	select: select,
+	copy: copy,
+	save: save,
+	render: render
 }
 
 /**
@@ -69,10 +69,10 @@ Buffer.prototype = {
 function move (distance) {
 	var caret = distance < 0 ? ~distance+1 : distance|0
 
-  while (caret-- > 0)
-  	distance > 0 ? 
-      (this.tail > 0 ? this.buff[this.lead++] = this.buff[this.size-this.tail++] : caret = 0) :
-      (this.lead > 0 ? this.buff[this.size-(this.tail++)-1] = this.buff[(this.lead--)-1] : caret = 0)
+	while (caret-- > 0)
+		distance > 0 ? 
+			(this.tail > 0 ? this.buff[this.lead++] = this.buff[this.size-this.tail++] : caret = 0) :
+			(this.lead > 0 ? this.buff[this.size-(this.tail++)-1] = this.buff[(this.lead--)-1] : caret = 0)
 }
 
 /**
@@ -106,12 +106,12 @@ function insert (string) {
  * @return {void}
  */
  function remove (distance) {
-  var caret = distance < 0 ? ~distance+1 : distance|0
+	var caret = distance < 0 ? ~distance+1 : distance|0
 
-  while (caret-- > 0)
-    distance < 0 ? 
-      (this.lead > 0 ? this.lead-- : caret = 0) :
-      (this.tail > 0 ? this.tail-- : caret = 0)
+	while (caret-- > 0)
+		distance < 0 ? 
+			(this.lead > 0 ? this.lead-- : caret = 0) :
+			(this.tail > 0 ? this.tail-- : caret = 0)
  }
 
 /**
@@ -133,17 +133,17 @@ function fill (char) {
  * @return {void}
  */
 function expand () {
-  var size = this.size*2
-  var buff = Array(size)
+	var size = this.size*2
+	var buff = Array(size)
 
-  for (var i = 0; i < this.lead; i++)
-    buff[i] = this.buff[i]
+	for (var i = 0; i < this.lead; i++)
+		buff[i] = this.buff[i]
 
-  for (var i = 0; i < this.tail; i++)
-    buff[size-i-1] = this.buff[this.size-i-1]
+	for (var i = 0; i < this.tail; i++)
+		buff[size-i-1] = this.buff[this.size-i-1]
 
-  this.buff = buff
-  this.size = size
+	this.buff = buff
+	this.size = size
 }
 
 /**
@@ -152,12 +152,12 @@ function expand () {
  * @return {void}
  */
 function select (x1, y1, x2, y2) {
-  // select coordiates, add to this.maps
-  if (x1|0 !== x2|0)
-    0
-  // unselect all selections
-  else
-    0
+	// select coordiates, add to this.maps
+	if (x1|0 !== x2|0)
+		0
+	// unselect all selections
+	else
+		0
 }
 
 /**
@@ -166,8 +166,8 @@ function select (x1, y1, x2, y2) {
  * @return {string}
  */
 function copy () {
-  // get selection maps, visit every selection and copy characters
-  // in a buffer, then return string version i.e like save .join('')
+	// get selection maps, visit every selection and copy characters
+	// in a buffer, then return string version i.e like save .join('')
 }
 
 /**
@@ -178,25 +178,25 @@ function copy () {
  * @return {string}
  */
 function save (location, distance) {
-  var caret = location|0
-  var travel = distance|0
-  var output = ''
+	var caret = location|0
+	var travel = distance|0
+	var output = ''
 
-  if (this.lead > 0)
-    while (caret < this.lead)
-      if (travel > 0)
-        output += this.buff[(travel--, caret++)]
-      else
-        break
+	if (this.lead > 0)
+		while (caret < this.lead)
+			if (travel > 0)
+				output += this.buff[(travel--, caret++)]
+			else
+				break
 
-  if (this.tail > 0 && (caret = this.size-this.tail) > 0)
-    while (caret < this.size)
-      if (travel > 0)
-        output += this.buff[(travel--, caret++)]
-      else
-        break
+	if (this.tail > 0 && (caret = this.size-this.tail) > 0)
+		while (caret < this.size)
+			if (travel > 0)
+				output += this.buff[(travel--, caret++)]
+			else
+				break
 
-  return output
+	return output
 }
 
 /**
@@ -235,100 +235,100 @@ function save (location, distance) {
  * 
  */
 function render (xAxis, yAxis) {
-  var byte = ''
-  var buff = this.buff
-  var lead = this.lead
-  var tail = this.tail
-  var size = this.size
-  var length = lead
+	var byte = ''
+	var buff = this.buff
+	var lead = this.lead
+	var tail = this.tail
+	var size = this.size
+	var length = lead
 
-  var line = lineHeight
-  var space = byteBlock
-  var tab = tabSize
-  var x = xAxis|0
-  var y = yAxis|0+fontSize
+	var line = lineHeight
+	var space = byteBlock
+	var tab = tabSize
+	var x = xAxis|0
+	var y = yAxis|0+fontSize
 
-  var i = 0
-  var offset = 0
-  var code = 0
-  var gap = 0
+	var i = 0
+	var offset = 0
+	var code = 0
+	var gap = 0
 
-  var cols = canvasWidth
-  var rows = canvasHeight
-  
-  var width = 0
-  var height = lineHeight
+	var cols = canvasWidth
+	var rows = canvasHeight
+	
+	var width = 0
+	var height = lineHeight
 
-  // setup
-  if (cols*rows > 0)
-    context.clearRect(0, 0, cols, rows)
+	// setup
+	if (cols*rows > 0)
+		context.clearRect(0, 0, cols, rows)
 
-  context.font = fontSize+'px '+fontFamily
+	context.font = fontSize+'px '+fontFamily
 
-  // visitor
-  while (true) {
-    // x-axis breadth
-    if (x > width)
-      width = x
+	// visitor
+	while (true) {
+		// x-axis breadth
+		if (x > width)
+			width = x
 
-    // eof
-    if (i === length) {
-      if (tail === 0 || gap++ > 0)
-        break
-      else
-        i = (length = size)-tail
-    }
+		// eof
+		if (i === length) {
+			if (tail === 0 || gap++ > 0)
+				break
+			else
+				i = (length = size)-tail
+		}
 
-    // syntax highlighting in this case becomes much cheaper than an array of strings data-structure
-    // 1. numbers, operators etc are universal so we can archive that at no cost
-    // 2. lazily peak operator keywards to archive syntax highlighting on others
-    // 3. use some binary state to track when inside comments and strings 
-    switch (code = (byte = buff[i++]).charCodeAt(offset = 0)) {
-      // carriage
-      case 13:
-        continue
-      // newline
-      case 10:
-        // y-axis height
-        height = y += line
-        x = 0
-        continue
-      // tab
-      case 9:
-        offset = tab*space
-        break
-      // operators
-      case 45:
-        // set default fill `context.fillStyle` 
-    }
+		// syntax highlighting in this case becomes much cheaper than an array of strings data-structure
+		// 1. numbers, operators etc are universal so we can archive that at no cost
+		// 2. lazily peak operator keywards to archive syntax highlighting on others
+		// 3. use some binary state to track when inside comments and strings 
+		switch (code = (byte = buff[i++]).charCodeAt(offset = 0)) {
+			// carriage
+			case 13:
+				continue
+			// newline
+			case 10:
+				// y-axis height
+				height = y += line
+				x = 0
+				continue
+			// tab
+			case 9:
+				offset = tab*space
+				break
+			// operators
+			case 45:
+				// set default fill `context.fillStyle` 
+		}
 
-    context.fillText(byte, x, y)
-    x += offset+space
-  }
+		context.fillText(byte, x, y)
+		x += offset+space
+	}
 
-  this.width = width|0
-  this.height = height|0
+	this.width = width|0
+	this.height = height|0
 
-  console.log(this.width, this.height)
+	console.log(this.width, this.height)
 }
 
 (function demo(){
-  var string = 'hello world'
-  var heap = new Buffer(string.length)
+	var string = 'hello world'
+	var heap = new Buffer(string.length)
 
-  heap.insert(string)
-  heap.render(0, 0)
+	heap.insert(string)
+	heap.render(0, 0)
 
-  setTimeout(() => {
-    heap.move(-2)
-    heap.insert('.')
-    heap.render(0, 0)
+	setTimeout(() => {
+		heap.move(-2)
+		heap.insert('.')
+		heap.render(0, 0)
 
-    setTimeout(()=> {
-      // -5 will remove the last 5 characters, 5 will remove next 5 characters
-      // heap.remove(5)
-      heap.render(0)
-      console.log(heap.save(0, heap.lead+heap.tail), heap.buff)
-    }, 200)
-  }, 200)
+		setTimeout(()=> {
+			// -5 will remove the last 5 characters, 5 will remove next 5 characters
+			// heap.remove(5)
+			heap.render(0)
+			console.log(heap.save(0, heap.lead+heap.tail), heap.buff)
+		}, 200)
+	}, 200)
 })()
