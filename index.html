@@ -19,11 +19,18 @@
 	var tabSize = 2
 
 	function Buffer (size) {
-		this.buff = Array(size)
-		this.size = size
-		this.lead = 0
-		this.tail = 0
-    this.line = 0
+    this.size = size
+    this.lead = 0
+    this.tail = 0
+
+    // entire buffer
+    this.buff = Array(size)
+
+    // selected buffer
+    this.maps = Array(0)
+
+    // visible buffer
+    this.view = [0, 0]
 	}
 
 	Buffer.prototype = {
@@ -34,8 +41,10 @@
 		insert: insert,
 		splice: splice,
 		expand: expand,
-		render: render,
-    extract: extract
+    select: select,
+    copy: copy,
+    save: save,
+    render: render
 	}
 
 	/**
@@ -110,7 +119,26 @@
     this.buff = this.buff.slice(0, this.lead).concat(Array(this.size*=2), this.buff.slice(this.tail))
   }
 
-  function extract () {
+  /**
+   * select
+   */
+  function select (x1, y1, x2, y2) {
+
+  }
+
+  /**
+   * copy
+   * @return {string}
+   */
+  function copy () {
+
+  }
+
+  /**
+   * save
+   * @return {string}
+   */
+  function save () {
     return this.buff.join('')
   }
 
@@ -189,61 +217,4 @@
     heap.insert('.')
     heap.render(0, 0)
   }, 200)
-
-  /**
-   * Draw
-   * 
-   * @param {Context} ctx
-   * @param {Array<Object[]>} data
-   * @param {number} xCord
-   * @param {number} yCord
-   */
-  function draw (context, heap, xAxis, yAxis) {
-  	
-	}
-
-	/**
-	 * Clear
-	 * 
-	 * @param {Context} context
-	 */
-	function clear (context, x, y, width, height) {
-		context.clearRect(x, y, width, height)
-	}
-
-  // clear(context, 0, 0, canvasWidth, canvasHeight)
-  // draw(context, heap, 0, fontSize)
-
-  // function bench (data, func, name) {
-  //   var ops = 10
-  //   var index = 0
-  //   var start = performance.now()
-  //   while (index++ < ops) {
-  //     var result = func(data)
-  //   }
-  //   var end = performance.now()
-
-  //   console.log((end-start)/10+' ops', name, result)
-  // }
-
-  // var arr = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
-
-  // function splice (arr) {
-  //   return arr.slice(0, 5).concat(new Array(5), arr.slice(5))
-  // }
-
-  // function alloc (arr) {
-  //   var buff = Array(15)
-
-  //   for (var i = 0; i < 5; i++)
-  //     buff[i] = arr[i]
-
-  //   for (var i = 5; i < 11; i++)
-  //     buff[i+5] = arr[i]
-
-  //   return buff
-  // }
-
-  // bench(arr, alloc, 'alloc')
-  // bench(arr, splice, 'alloc')
  </script>
