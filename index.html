@@ -23,6 +23,7 @@
 		this.size = size
 		this.lead = 0
 		this.tail = 0
+    this.line = 0
 	}
 
 	Buffer.prototype = {
@@ -38,6 +39,7 @@
 
 	/**
 	 * move foward
+   * @return {void} 
 	 */
  	function forward () {
  		if (this.tail > 0)
@@ -45,7 +47,8 @@
  	}
 
  	/**
- 	 * move back
+ 	 * back
+   * @return {void}
  	 */
  	function backward () {
  		if (this.lead > 0)
@@ -54,6 +57,8 @@
 
  	/**
  	 * move
+   * @param {number}
+   * @return {void}
  	 */
  	function move (distance) {
  		var caret = distance
@@ -64,11 +69,18 @@
 
  	/**
  	 * jump
+   * @param {number}
+   * @return {void}
  	 */
  	function jump (location) {
  		this.move(location-this.lead)
  	}
 
+  /**
+   * insert
+   * @param {string} string
+   * @return {void}
+   */
  	function insert (string) {
  		if (string.length > 0)
  			for (var i = 0; i < string.length; i++)
@@ -77,39 +89,101 @@
  			this.splice(string)
  	}
 
- 	function splice (character) {
+  /**
+   * split
+   * @param {string} char
+   * @return {void}
+   */
+ 	function splice (char) {
  		if (this.lead + this.tail === this.size)
  			this.expand()
 
- 		this.buff[this.lead++] = character
+ 		this.buff[this.lead++] = char
  	}
 
+  /**
+   * expand
+   * @return {void}
+   */
  	function expand () {
- 		var size = this.size*2
- 		var buff = Array(size)
+    this.buff = this.buff.slice(0, this.lead).concat(Array(this.size*=2), this.buff.slice(this.tail))
+  }
 
- 		for (var i = 0; i < this.lead; i++)
- 			buff[i] = this.buff[i]
+  /**
+   * render
+   * @param {number} xAxis
+   * @param {number} yAxix
+   * @return {void}
+   *
+   * @todo only render the parts that are in view/delta
+   */
+ 	function render (xAxis, yAxis) {
+    var byte = ''
+    var buff = this.buff
+    var lead = this.lead
+    var tail = this.tail
+    var len = buff.length
+    var size = lead
 
- 		for (var i = 0; i < this.tail; i++)
- 			buff[size-i-1] = this.buff[this.size-i-1]
+    var height = lineHeight
+    var width = byteBlock
+    var tab = tabSize
+    var x = xAxis
+    var y = yAxis+fontSize
 
- 		this.buff = buff
- 		this.size = size
- 	}
+    var i = 0
+    var offset = 0
+    var code = 0
+    var gap = 0
 
- 	function render () {
- 		clear(context, 0, 0, canvasWidth, canvasHeight)
- 		draw(context, this, 0, fontSize)
+    var cols = canvasWidth
+    var rows = canvasHeight
+
+    // setup
+    if (cols*rows > 0)
+      context.clearRect(0, 0, cols, rows)
+
+    context.font = fontSize+'px '+fontFamily
+
+    // visitor
+    while (true) {
+      if (i === size) {
+        if (tail === 0 || gap++ > 0)
+          break
+        else
+          i = (size = len)-tail
+      }
+
+      switch ((byte = buff[i++]).charCodeAt(offset = 0)) {
+        // newline
+        case 13:
+          break
+        case 10:
+          y += height
+          x = 0
+          break
+        // tab
+        case 9:
+          offset = tab*width
+        default: 
+          context.fillText(byte, x, y)
+          x += offset+width
+      }
+    }
  	}
 
  	var string = 'hello world'
  	var heap = new Buffer(string.length)
 
  	heap.insert(string)
- 	heap.render()
- 	heap.insert('.')
- 	heap.render()
+ 	heap.render(0, 0)
+
+  setTimeout(() => {
+    heap.backward()
+    heap.backward()
+    heap.insert('.')
+    heap.render(0, 0)
+  }, 200)
 
   /**
    * Draw
@@ -120,52 +194,7 @@
    * @param {number} yCord
    */
   function draw (context, heap, xAxis, yAxis) {
-  	var byte = ''
-  	var buff = heap.buff
-
-  	var lead = heap.lead|0
-  	var tail = heap.tail|0
-  	var length = buff.length|0
-  	var size = lead|0
-  	var height = lineHeight|0
-  	var width = byteBlock|0
-  	var tab = tabSize|0
-  	var x = xAxis|0
-  	var y = yAxis|0
-  	var column = 0
-  	var line = 0
-  	var offset = 0
-  	var code = 0
-  	var gap = 0
-
-  	// setup
-  	context.font = fontSize+'px '+fontFamily
-
-  	// visitor
-  	while (true) {
-  		if (column === size) {
-				if (tail === 0 || gap++ > 0)
-					break
-				else
-					size = length, column = tail
-  		}
-
-  		switch ((byte = buff[column++]).charCodeAt(offset = 0)) {
-  			// newline
-  			case 13:
-  				break
-  			case 10:
-  				y += height
-  				x = 0
-  				break
-  			// tab
-  			case 9:
-  				offset = tab*width
-  			default: 
-  				context.fillText(byte, x, y)
-  				x += offset+width
-  		}
-  	}
+  	
 	}
 
 	/**
@@ -179,4 +208,37 @@
 
   // clear(context, 0, 0, canvasWidth, canvasHeight)
   // draw(context, heap, 0, fontSize)
+
+  // function bench (data, func, name) {
+  //   var ops = 10
+  //   var index = 0
+  //   var start = performance.now()
+  //   while (index++ < ops) {
+  //     var result = func(data)
+  //   }
+  //   var end = performance.now()
+
+  //   console.log((end-start)/10+' ops', name, result)
+  // }
+
+  // var arr = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+  // function splice (arr) {
+  //   return arr.slice(0, 5).concat(new Array(5), arr.slice(5))
+  // }
+
+  // function alloc (arr) {
+  //   var buff = Array(15)
+
+  //   for (var i = 0; i < 5; i++)
+  //     buff[i] = arr[i]
+
+  //   for (var i = 5; i < 11; i++)
+  //     buff[i+5] = arr[i]
+
+  //   return buff
+  // }
+
+  // bench(arr, alloc, 'alloc')
+  // bench(arr, splice, 'alloc')
  </script>
