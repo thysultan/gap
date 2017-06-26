@@ -18,18 +18,35 @@
 	var lineHeight = fontSize
 	var tabSize = 2
 
+  /**
+   * buffer
+   *
+   * gap buffer
+   *
+   * [1, 2, 3, _, 5] init
+   *           
+   * [1, 2, 3, 4, 5] inset
+   *
+   * [1, 2, 3, _, _] remove
+   *
+   * [1, 2, _, 3, 5] move
+   *
+   * [1, 2, 3, _, _, _, _, _, 5] alloc larger(2N) buffer
+   * 
+   * 
+   * @param {number} size
+   */
 	function Buffer (size) {
-    this.size = size
     this.lead = 0
     this.tail = 0
 
     // entire buffer
-    this.buff = Array(size)
+    this.buff = Array(this.size = size|0)
 
-    // selected buffer
+    // selection buffer
     this.maps = Array(0)
 
-    // visible buffer
+    // visible coordinates
     this.view = [0, 0]
 	}
 
@@ -39,7 +56,8 @@
 		move: move,
 		jump: jump,
 		insert: insert,
-		splice: splice,
+    remove: remove,
+		fill: fill,
 		expand: expand,
     select: select,
     copy: copy,
@@ -48,7 +66,8 @@
 	}
 
 	/**
-	 * move foward
+	 * move
+   * 
    * @return {void} 
 	 */
  	function forward () {
@@ -58,6 +77,7 @@
 
  	/**
  	 * back
+   * 
    * @return {void}
  	 */
  	function backward () {
@@ -67,44 +87,65 @@
 
  	/**
  	 * move
+   * 
    * @param {number}
    * @return {void}
  	 */
  	function move (distance) {
- 		var caret = distance
+ 		var caret = distance|0
 
-		while (caret--)
-			distance > 0 ? this.forward() : this.backward()
+		while (caret-- > 0)
+			distance > 0 ? 
+        this.forward() : 
+        this.backward()
  	}
 
  	/**
  	 * jump
+   * 
    * @param {number}
    * @return {void}
  	 */
  	function jump (location) {
- 		this.move(location-this.lead)
+ 		this.move(location|0-this.lead)
  	}
 
   /**
    * insert
+   * 
    * @param {string} string
    * @return {void}
    */
  	function insert (string) {
  		if (string.length > 0)
  			for (var i = 0; i < string.length; i++)
- 				this.splice(string.charAt(i))
+ 				this.fill(string.charAt(i))
  		else
- 			this.splice(string)
+ 			this.fill(string)
  	}
 
   /**
-   * split
+   * remove
+   * 
+   * @param {number} distance
+   * @return {void}
+   */
+   function remove (distance) {
+      var caret = distance < 0 ? ~distance+1 : distance|0
+
+      while (caret-- > 0)
+        distance < 0 ? 
+          (this.lead > 0 ? this.lead-- : caret = 0) :
+          (this.tail > 0 ? this.tail-- : caret = 0)
+   }
+
+  /**
+   * fill
+   * 
    * @param {string} char
    * @return {void}
    */
- 	function splice (char) {
+ 	function fill (char) {
  		if (this.lead + this.tail === this.size)
  			this.expand()
 
@@ -113,6 +154,7 @@
 
   /**
    * expand
+   * 
    * @return {void}
    */
  	function expand () {
@@ -161,8 +203,8 @@
     var height = lineHeight
     var width = byteBlock
     var tab = tabSize
-    var x = xAxis
-    var y = yAxis+fontSize
+    var x = xAxis|0
+    var y = yAxis|0+fontSize
 
     var i = 0
     var offset = 0
@@ -216,5 +258,10 @@
     heap.backward()
     heap.insert('.')
     heap.render(0, 0)
+  
+    setTimeout(()=> {
+      heap.remove(5)
+      heap.render(0, 0)
+    }, 200)
   }, 200)
  </script>
