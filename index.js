@@ -1,8 +1,10 @@
 var viewport = document.body
 var canvas = document.getElementById('canvas')
 var context = canvas.getContext('2d')
-var canvasHeight = canvas.height = viewport.offsetHeight 
+var canvasHeight = canvas.height = viewport.offsetHeight
 var canvasWidth = canvas.width = viewport.offsetWidth
+
+// settings
 var fontSize = 13
 var fontFamily = 'monospace'
 var byteBlock = fontSize/1.66640
@@ -24,7 +26,6 @@ var tabSize = 2
  *
  * [1, 2, 3, _, _, _, _, _, 5] alloc larger(2N) buffer
  * 
- * 
  * @param {number} size
  */
 function Buffer (size) {
@@ -39,6 +40,10 @@ function Buffer (size) {
 
   // visible coordinates
   this.view = [0, 0]
+
+  // dimensions
+  this.width = 0
+  this.height = 0
 }
 
 Buffer.prototype = {
@@ -164,18 +169,30 @@ function save () {
  * @param {number} yAxix
  * @return {void}
  *
- * @todo only render the parts that are in view/delta
+ * @todo only render the parts that are visible
+ *
+ * 1. we could get to the visible area by calculating the delta
+ *    coming from opposite ends(line by line) till we reach the middle –> x <–
+ *    such that x <= visible viewport height at this paint we just paint the remaing lines
+ *
+ *    possible optimization could be added to start from the closest anchors from both sides
+ *    if possible.
+ *
+ *    this assumes handling scrolling as well.
+ *
+ * 2. for the most part the same as 1. but instead of just grow the canvas as needed
+ *    let the native runtime handle scroll, and only update the parts of visible viewport like 1.
  */
 function render (xAxis, yAxis) {
   var byte = ''
   var buff = this.buff
   var lead = this.lead
   var tail = this.tail
-  var len = buff.length
+  var length = buff.length
   var size = lead
 
-  var height = lineHeight
-  var width = byteBlock
+  var line = lineHeight
+  var space = byteBlock
   var tab = tabSize
   var x = xAxis|0
   var y = yAxis|0+fontSize
@@ -187,6 +204,9 @@ function render (xAxis, yAxis) {
 
   var cols = canvasWidth
   var rows = canvasHeight
+  
+  var width = 0
+  var height = lineHeight
 
   // setup
   if (cols*rows > 0)
@@ -196,11 +216,16 @@ function render (xAxis, yAxis) {
 
   // visitor
   while (true) {
+    // x-axis breadth
+    if (x > width)
+      width = x
+
+    // eof
     if (i === size) {
       if (tail === 0 || gap++ > 0)
         break
       else
-        i = (size = len)-tail
+        i = (size = length)-tail
     }
 
     // syntax highlighting in this case becomes much cheaper than an array of strings data-structure
@@ -213,12 +238,13 @@ function render (xAxis, yAxis) {
         continue
       // newline
       case 10:
-        y += height
+        // y-axis height
+        height = y += line
         x = 0
         continue
       // tab
       case 9:
-        offset = tab*width
+        offset = tab*space
         break
       // operators
       case 45:
@@ -226,8 +252,13 @@ function render (xAxis, yAxis) {
     }
 
     context.fillText(byte, x, y)
-    x += offset+width
+    x += offset+space
   }
+
+  this.width = width|0
+  this.height = height|0
+
+   console.log(this.width, this.height)
 }
 
 (function demo(){
