@@ -133,7 +133,17 @@ function fill (char) {
  * @return {void}
  */
 function expand () {
-  this.buff = this.buff.slice(0, this.lead).concat(Array(this.size*=2), this.buff.slice(this.tail))
+  var size = this.size*2
+  var buff = Array(size)
+
+  for (var i = 0; i < this.lead; i++)
+    buff[i] = this.buff[i]
+
+  for (var i = 0; i < this.tail; i++)
+    buff[size-i-1] = this.buff[this.size-i-1]
+
+  this.buff = buff
+  this.size = size
 }
 
 /**
@@ -142,7 +152,12 @@ function expand () {
  * @return {void}
  */
 function select (x1, y1, x2, y2) {
-
+  // select coordiates, add to this.maps
+  if (x1|0 !== x2|0)
+    0
+  // unselect all selections
+  else
+    0
 }
 
 /**
@@ -151,7 +166,8 @@ function select (x1, y1, x2, y2) {
  * @return {string}
  */
 function copy () {
-
+  // get selection maps, visit every selection and copy characters
+  // in a buffer, then return string version i.e like save .join('')
 }
 
 /**
@@ -292,6 +308,7 @@ function render (xAxis, yAxis) {
       // -5 will remove the last 5 characters, 5 will remove next 5 characters
       heap.remove(5)
       heap.render(0, 0)
+      console.log(heap.save(), heap.buff)
     }, 200)
   }, 200)
 })()
