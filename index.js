@@ -34,7 +34,8 @@ function Buffer (size) {
 	this.tail = 0
 
 	// buffer
-	this.buff = Array(this.size = size|0)
+	this.size = size|0
+	this.buff = Array(size|0)
 
 	// selections
 	this.maps = Array(0)
@@ -45,7 +46,7 @@ function Buffer (size) {
 
 	// viewport
 	this.head = 0
-	this.foot = 0
+	this.foot = size|0
 }
 
 Buffer.prototype = {
@@ -315,6 +316,9 @@ function down () {
  *     delete->create insertion
  *    but that involes alot of bookkeeping to do syntax highlighting in canvas
  *
+ * 4. [current choice] do #1 except we already know the which character are visible in the viewport
+ * 		so we render all of them +1 extra line on the top and one the bottom to buffer the scrolling intersaction 
+ *
  * @todo
  *   draw from right->left, bottom->top
  *   allows for some optimizations in syntax highlighting and general rendering
@@ -322,7 +326,12 @@ function down () {
  * I think option 1. is the best modal for the most control and constant time rendering
  * proportortional to the dimensions of the visible viewport regardless of the size
  * of the file.
- * 
+ *
+ * The cursor will be draw at the gap
+ * the cursor will render in a separate step
+ * but we will update the position to draw the cursor
+ * when after we render the world if the position is within the viewport
+ * and the cursor will only render when it the gap is part of the viewport
  */
 function render (xAxis, yAxis) {
 	var byte = ''
@@ -416,7 +425,7 @@ function render (xAxis, yAxis) {
 
 		setTimeout(()=> {
 			// -5 will remove the last 5 characters, 5 will remove next 5 characters
-			// heap.remove(5)
+			heap.remove(5)
 			heap.render(0)
 			console.log(heap.save(0, heap.lead+heap.tail), heap.buff)
 		}, 200)
