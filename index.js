@@ -29,22 +29,23 @@ var tabSize = 2
  * @param {number} size
  */
 function Buffer (size) {
+	// cursor
 	this.lead = 0
 	this.tail = 0
 
-	// entire buffer
+	// buffer
 	this.buff = Array(this.size = size|0)
 
-	// selection coordinates
+	// selections
 	this.maps = Array(0)
 
-	// visible dimension
+	// dimension
 	this.width = 0
 	this.height = 0
 
-	// visible coordinate
-	this.x = 0
-	this.y = 0
+	// viewport
+	this.head = 0
+	this.foot = 0
 }
 
 Buffer.prototype = {
@@ -57,6 +58,9 @@ Buffer.prototype = {
 	select: select,
 	copy: copy,
 	save: save,
+	scroll: scroll,
+	up: up,
+	down: down,
 	render: render
 }
 
@@ -70,9 +74,10 @@ function move (distance) {
 	var caret = distance < 0 ? ~distance+1 : distance|0
 
 	while (caret-- > 0)
-		distance > 0 ? 
-			(this.tail > 0 ? this.buff[this.lead++] = this.buff[this.size-this.tail++] : caret = 0) :
-			(this.lead > 0 ? this.buff[this.size-(this.tail++)-1] = this.buff[(this.lead--)-1] : caret = 0)
+		if (distance > 0)
+			this.tail > 0 ? this.buff[this.lead++] = this.buff[this.size-this.tail++] : caret = 0
+		else
+			this.lead > 0 ? this.buff[this.size-(this.tail++)-1] = this.buff[(this.lead--)-1] : caret = 0
 }
 
 /**
@@ -105,13 +110,14 @@ function insert (string) {
  * @param {number} distance
  * @return {void}
  */
- function remove (distance) {
+function remove (distance) {
 	var caret = distance < 0 ? ~distance+1 : distance|0
 
 	while (caret-- > 0)
-		distance < 0 ? 
-			(this.lead > 0 ? this.lead-- : caret = 0) :
-			(this.tail > 0 ? this.tail-- : caret = 0)
+		if (distance < 0)
+			this.lead > 0 ? this.lead-- : caret = 0
+		else
+			this.tail > 0 ? this.tail-- : caret = 0
  }
 
 /**
@@ -197,6 +203,47 @@ function save (location, distance) {
 				break
 
 	return output
+}
+
+/**
+ * scroll
+ * 
+ * @param {number} distance
+ */
+function scroll (distance) {
+	var caret = distance < 0 ? ~distance+1 : distance|0
+
+	while (caret-- > 0)
+		if (distance < 0)
+			this.up()
+		else
+			this.down()
+}
+
+/**
+ * up
+ */
+function up () {
+	while (this.head > 0)
+		if (this.buff[this.head--].charCodeAt(0) === 10)
+			break
+
+	while (this.foot > this.size)
+		if (this.buff[this.foot++].charCodeAt(0) === 10)
+			break
+}
+
+/**
+ * down
+ */
+function down () {
+	while (this.head < this.size)
+		if (this.buff[this.head++].charCodeAt(0) === 10)
+			break
+
+	while (this.foot > 0)
+		if (this.buff[this.foot--].charCodeAt(0) === 10)
+			break
 }
 
 /**
