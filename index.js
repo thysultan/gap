@@ -4,13 +4,6 @@ var context = canvas.getContext('2d')
 var canvasHeight = canvas.height = viewport.offsetHeight
 var canvasWidth = canvas.width = viewport.offsetWidth
 
-// settings
-var fontSize = 13
-var fontFamily = 'monospace'
-var byteBlock = fontSize/1.66640
-var lineHeight = fontSize
-var tabSize = 2
-
 /**
  * buffer
  *
@@ -28,28 +21,29 @@ var tabSize = 2
  * 
  * @param {number} size
  */
-function Buffer (size) {
+function Buffer (size, width, height) {
 	// cursor
-	this.lead = 0
-	this.tail = 0
+	this.pre = 0
+	this.post = 0
 
 	// buffer
 	this.size = size|0
-	this.buff = Array(size|0)
+	this.buff = Array(this.size)
 
-	// selections
-	this.maps = Array(0)
+	// selection
+	this.select = Array(0)
 
 	// dimension
-	this.width = 0
-	this.height = 0
+	this.width = width|0
+	this.height = height|0
 
 	// viewport
-	this.head = 0
-	this.foot = size|0
+	this.x = this.width
+	this.y = 0
 }
 
 Buffer.prototype = {
+	// methods
 	move: move,
 	jump: jump,
 	insert: insert,
@@ -60,9 +54,13 @@ Buffer.prototype = {
 	copy: copy,
 	save: save,
 	scroll: scroll,
-	up: up,
-	down: down,
-	render: render
+	render: render,
+
+	// static
+	byteBlock: 13/1.66640,
+	fontSize: 13,
+	tabSize: 2,
+	fontFamily: 'monospace'
 }
 
 /**
@@ -80,16 +78,16 @@ function move (distance) {
 		// backward
 		if (distance > 0)
 			// within bounds
-			if (this.tail > 0)
-				this.buff[this.lead++] = this.buff[this.size-this.tail++]
+			if (this.post > 0)
+				this.buff[this.pre++] = this.buff[this.size-this.post++]
 			// out of bounds
 			else
 				break
 		// forward
 		else
 			// within bounds
-			if (this.lead > 0)
-				this.buff[this.size-(this.tail++)-1] = this.buff[(this.lead--)-1]
+			if (this.pre > 0)
+				this.buff[this.size-(this.post++)-1] = this.buff[(this.pre--)-1]
 			// out of bounds
 			else
 				break
@@ -102,7 +100,7 @@ function move (distance) {
  * @return {void}
  */
 function jump (location) {
-	this.move(location|0-this.lead)
+	this.move(location|0-this.pre)
 }
 
 /**
@@ -136,10 +134,10 @@ function remove (distance) {
 	while (caret-- > 0)
 		// shift
 		if (distance < 0)
-			this.lead > 0 ? this.lead-- : caret = 0
+			this.pre > 0 ? this.pre-- : caret = 0
 		// pop
 		else
-			this.tail > 0 ? this.tail-- : caret = 0
+			this.post > 0 ? this.post-- : caret = 0
  }
 
 /**
@@ -150,11 +148,11 @@ function remove (distance) {
  */
 function fill (char) {
 	// not enough space?
-	if (this.lead + this.tail === this.size)
+	if (this.pre + this.post === this.size)
 		this.expand()
 
 	// fill in character
-	this.buff[this.lead++] = char
+	this.buff[this.pre++] = char
 }
 
 /**
@@ -168,15 +166,87 @@ function expand () {
 	var buff = Array(size)
 
 	// leading characters
-	for (var i = 0; i < this.lead; i++)
+	for (var i = 0; i < this.pre; i++)
 		buff[i] = this.buff[i]
 
 	// tailing characters
-	for (var i = 0; i < this.tail; i++)
+	for (var i = 0; i < this.post; i++)
 		buff[size-i-1] = this.buff[this.size-i-1]
 
 	this.buff = buff
 	this.size = size
+}
+
+/**
+ * scroll
+ * 
+ * @param {number} horizontal
+ * @param {number} vertical
+ */
+function scroll (horizontal, vertical) {
+	// retrieve unsigned integer
+	var x = horizontal < 0 ? ~horizontal+1 : horizontal|0
+	var y = vertical < 0 ? ~vertical+1 : vertical|0
+
+	// vertical
+	while (y-- > 0)
+		// move viewport up
+		if (vertical < 0)
+			while (this.y > 0)
+				if (this.buff[this.y--].charCodeAt(0) === 10)
+					break
+		// move viewport down
+		else
+			while (this.y < this.size)
+				if (this.buff[this.y++].charCodeAt(0) === 10)
+					break
+
+	// horizontal
+	while (x-- > 0)
+		// move viewport left
+		if (horizontal < 0)
+			this.x--
+		// move viewport right
+		else
+			this.x++
+}
+
+/**
+ * save
+ *
+ * @param {number} location
+ * @param {number} distance
+ * @return {string}
+ */
+function save (location, distance) {
+	// retrieve integer
+	var caret = location|0
+	var travel = distance|0
+	
+	// setup destination buffer
+	var output = ''
+
+	// leading characters
+	if (this.pre > 0)
+		// visitor
+		while (caret < this.pre)
+			// within range
+			if (travel > 0)
+				output += this.buff[(travel--, caret++)]
+			// end of range
+			else
+				break
+
+	// tailing characters
+	if (this.post > 0 && (caret = this.size-this.post) > 0)
+		// visitor
+		while (caret < this.size)
+			if (travel > 0)
+				output += this.buff[(travel--, caret++)]
+			else
+				break
+
+	return output
 }
 
 /**
@@ -201,93 +271,6 @@ function select (x1, y1, x2, y2) {
 function copy () {
 	// get selection maps, visit every selection and copy characters
 	// in a buffer, then return string version i.e like save .join('')
-}
-
-/**
- * save
- *
- * @param {number} location
- * @param {number} distance
- * @return {string}
- */
-function save (location, distance) {
-	// retrieve integer
-	var caret = location|0
-	var travel = distance|0
-	
-	// setup destination buffer
-	var output = ''
-
-	// leading characters
-	if (this.lead > 0)
-		// visitor
-		while (caret < this.lead)
-			// within range
-			if (travel > 0)
-				output += this.buff[(travel--, caret++)]
-			// end of range
-			else
-				break
-
-	// tailing characters
-	if (this.tail > 0 && (caret = this.size-this.tail) > 0)
-		// visitor
-		while (caret < this.size)
-			if (travel > 0)
-				output += this.buff[(travel--, caret++)]
-			else
-				break
-
-	return output
-}
-
-/**
- * scroll
- * 
- * @param {number} distance
- */
-function scroll (distance) {
-	// retrieve unsigned integer
-	var caret = distance < 0 ? ~distance+1 : distance|0
-
-	// move visible viewport(represents two points between exists all visible characters)
-	while (caret-- > 0)
-		// up
-		if (distance < 0)
-			this.up()
-		// down
-		else
-			this.down()
-}
-
-/**
- * up
- */
-function up () {
-	// move head back a line
-	while (this.head > 0)
-		if (this.buff[this.head--].charCodeAt(0) === 10)
-			break
-
-	// move foot foward a line
-	while (this.foot > this.size)
-		if (this.buff[this.foot++].charCodeAt(0) === 10)
-			break
-}
-
-/**
- * down
- */
-function down () {
-	// move head foward a line
-	while (this.head < this.size)
-		if (this.buff[this.head++].charCodeAt(0) === 10)
-			break
-
-	// move foot back a line
-	while (this.foot > 0)
-		if (this.buff[this.foot--].charCodeAt(0) === 10)
-			break
 }
 
 /**
@@ -336,60 +319,50 @@ function down () {
 function render (xAxis, yAxis) {
 	var byte = ''
 	var buff = this.buff
-	var lead = this.lead
-	var tail = this.tail
+	var pre = this.pre
+	var post = this.post
 	var size = this.size
-	var length = lead
+	var length = pre
 
-	var line = lineHeight
-	var space = byteBlock
-	var tab = tabSize
+	var line = this.lineHeight
+	var space = this.byteBlock
+	var tab = this.tabSize
 	var x = xAxis|0
-	var y = yAxis|0+fontSize
+	var y = yAxis|0+this.fontSize
 
 	var i = 0
 	var offset = 0
 	var code = 0
-	var gap = 0
-
-	var cols = canvasWidth
-	var rows = canvasHeight
-	
-	var width = 0
-	var height = lineHeight
+	var gap = 0	
+	var breadth = 0
 
 	// setup
-	if (cols*rows > 0)
-		context.clearRect(0, 0, cols, rows)
+	if (this.width*this.height > 0)
+		context.clearRect(0, 0, this.width, this.height)
 
-	context.font = fontSize+'px '+fontFamily
+	context.font = this.fontSize+'px '+this.fontFamily
 
 	// visitor
 	while (true) {
 		// x-axis breadth
-		if (x > width)
-			width = x
+		if (x > breadth)
+			breadth = x
 
 		// eof
 		if (i === length) {
-			if (tail === 0 || gap++ > 0)
+			if (post === 0 || gap++ > 0)
 				break
 			else
-				i = (length = size)-tail
+				i = (length = size)-post
 		}
 
-		// syntax highlighting in this case becomes much cheaper than an array of strings data-structure
-		// 1. numbers, operators etc are universal so we can archive that at no cost
-		// 2. lazily peak operator keywards to archive syntax highlighting on others
-		// 3. use some binary state to track when inside comments and strings 
 		switch (code = (byte = buff[i++]).charCodeAt(offset = 0)) {
 			// carriage
 			case 13:
 				continue
 			// newline
 			case 10:
-				// y-axis height
-				height = y += line
+				y += line
 				x = 0
 				continue
 			// tab
@@ -398,22 +371,23 @@ function render (xAxis, yAxis) {
 				break
 			// operators
 			case 45:
-				// set default fill `context.fillStyle` 
+				// set default fill `context.fillStyle`
+			default:
+				// syntax highlighting in this case becomes much cheaper than an array of strings data-structure
+				// 1. numbers, operators etc are universal so we can archive that at no cost
+				// 2. lazily peak operator keywards to archive syntax highlighting on others
+				// 3. use some binary state to track when inside comments and strings 
 		}
 
 		context.fillText(byte, x, y)
+
 		x += offset+space
 	}
-
-	this.width = width|0
-	this.height = height|0
-
-	console.log(this.width, this.height)
 }
 
 (function demo(){
 	var string = 'hello world'
-	var heap = new Buffer(string.length)
+	var heap = new Buffer(string.length, canvasWidth, canvasHeight)
 
 	heap.insert(string)
 	heap.render(0, 0)
@@ -427,7 +401,7 @@ function render (xAxis, yAxis) {
 			// -5 will remove the last 5 characters, 5 will remove next 5 characters
 			heap.remove(5)
 			heap.render(0)
-			console.log(heap.save(0, heap.lead+heap.tail), heap.buff)
+			console.log(heap.save(0, heap.pre+heap.post), heap)
 		}, 200)
 	}, 200)
 })()
