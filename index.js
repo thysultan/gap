@@ -71,13 +71,27 @@ Buffer.prototype = {
  * @return {void}
  */
 function move (distance) {
+	// retrieve unsigned integer
 	var caret = distance < 0 ? ~distance+1 : distance|0
 
+	// travel distance
 	while (caret-- > 0)
+		// backward
 		if (distance > 0)
-			this.tail > 0 ? this.buff[this.lead++] = this.buff[this.size-this.tail++] : caret = 0
+			// within bounds
+			if (this.tail > 0)
+				this.buff[this.lead++] = this.buff[this.size-this.tail++]
+			// out of bounds
+			else
+				break
+		// forward
 		else
-			this.lead > 0 ? this.buff[this.size-(this.tail++)-1] = this.buff[(this.lead--)-1] : caret = 0
+			// within bounds
+			if (this.lead > 0)
+				this.buff[this.size-(this.tail++)-1] = this.buff[(this.lead--)-1]
+			// out of bounds
+			else
+				break
 }
 
 /**
@@ -97,9 +111,12 @@ function jump (location) {
  * @return {void}
  */
 function insert (string) {
+	// more than one character
 	if (string.length > 0)
+		// fill in each character
 		for (var i = 0; i < string.length; i++)
 			this.fill(string.charAt(i))
+	// single character
 	else
 		this.fill(string)
 }
@@ -111,11 +128,15 @@ function insert (string) {
  * @return {void}
  */
 function remove (distance) {
+	// retrieve unsigned integer
 	var caret = distance < 0 ? ~distance+1 : distance|0
 
+	// visitor
 	while (caret-- > 0)
+		// shift
 		if (distance < 0)
 			this.lead > 0 ? this.lead-- : caret = 0
+		// pop
 		else
 			this.tail > 0 ? this.tail-- : caret = 0
  }
@@ -127,9 +148,11 @@ function remove (distance) {
  * @return {void}
  */
 function fill (char) {
+	// not enough space?
 	if (this.lead + this.tail === this.size)
 		this.expand()
 
+	// fill in character
 	this.buff[this.lead++] = char
 }
 
@@ -139,12 +162,15 @@ function fill (char) {
  * @return {void}
  */
 function expand () {
+	// exponatially grow, avoids frequent expansions
 	var size = this.size*2
 	var buff = Array(size)
 
+	// leading characters
 	for (var i = 0; i < this.lead; i++)
 		buff[i] = this.buff[i]
 
+	// tailing characters
 	for (var i = 0; i < this.tail; i++)
 		buff[size-i-1] = this.buff[this.size-i-1]
 
@@ -158,10 +184,10 @@ function expand () {
  * @return {void}
  */
 function select (x1, y1, x2, y2) {
-	// select coordiates, add to this.maps
+	// select coordinates
 	if (x1|0 !== x2|0)
 		0
-	// unselect all selections
+	// unselect coordinates
 	else
 		0
 }
@@ -184,18 +210,27 @@ function copy () {
  * @return {string}
  */
 function save (location, distance) {
+	// retrieve integer
 	var caret = location|0
 	var travel = distance|0
+	
+	// setup destination buffer
 	var output = ''
 
+	// leading characters
 	if (this.lead > 0)
+		// visitor
 		while (caret < this.lead)
+			// within range
 			if (travel > 0)
 				output += this.buff[(travel--, caret++)]
+			// end of range
 			else
 				break
 
+	// tailing characters
 	if (this.tail > 0 && (caret = this.size-this.tail) > 0)
+		// visitor
 		while (caret < this.size)
 			if (travel > 0)
 				output += this.buff[(travel--, caret++)]
@@ -211,11 +246,15 @@ function save (location, distance) {
  * @param {number} distance
  */
 function scroll (distance) {
+	// retrieve unsigned integer
 	var caret = distance < 0 ? ~distance+1 : distance|0
 
+	// move visible viewport(represents two points between exists all visible characters)
 	while (caret-- > 0)
+		// up
 		if (distance < 0)
 			this.up()
+		// down
 		else
 			this.down()
 }
@@ -224,10 +263,12 @@ function scroll (distance) {
  * up
  */
 function up () {
+	// move head back a line
 	while (this.head > 0)
 		if (this.buff[this.head--].charCodeAt(0) === 10)
 			break
 
+	// move foot foward a line
 	while (this.foot > this.size)
 		if (this.buff[this.foot++].charCodeAt(0) === 10)
 			break
@@ -237,10 +278,12 @@ function up () {
  * down
  */
 function down () {
+	// move head foward a line
 	while (this.head < this.size)
 		if (this.buff[this.head++].charCodeAt(0) === 10)
 			break
 
+	// move foot back a line
 	while (this.foot > 0)
 		if (this.buff[this.foot--].charCodeAt(0) === 10)
 			break
