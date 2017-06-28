@@ -52,7 +52,7 @@ function Buffer (size, width, height) {
 	this.length = 0
 
 	// scroll
-	thix.x = 0
+	this.x = 0
 	this.y = 0
 
 	// history
