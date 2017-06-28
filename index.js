@@ -453,7 +453,7 @@ function render (xAxis, yAxis) {
 	}
 
 	if (y >= canvasHeight)
-		(stop = true, console.log('done - ' + ' ' + this.pre+this.post + ' characters printed'))
+		(stop = true, console.log('done - ' + ' ' + this.pre+this.post + ' characters printed, '+y/font+' lines'))
 }
 
 var stop = false;
