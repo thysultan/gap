@@ -20,6 +20,15 @@ var canvasWidth = canvas.width = viewport.offsetWidth
  * [1, 2, 3, _, _, _, _, _, 5] alloc larger(2N) buffer
  * 
  * @param {number} size
+ * @param {number} width
+ * @param {number} height
+ *
+ * @todo explore a Unsigned Typed Array of character codes
+ * which would the speed of operations that happen before rendering
+ * though using String.fromCharCode() when rendering might increase
+ * the speed of operations when rendering,
+ * but rendering is constant time (N) where N is the # of characters that can fit
+ * in on the visible screen
  */
 function Buffer (size, width, height) {
 	// cursor
@@ -28,18 +37,21 @@ function Buffer (size, width, height) {
 
 	// buffer
 	this.size = size|0
-	this.buff = Array(this.size)
+	this.buff = new Uint8Array(this.size)
 
 	// selection
-	this.select = Array(0)
+	this.select = new Array(0)
 
 	// dimension
 	this.width = width|0
 	this.height = height|0
 
 	// viewport
-	this.x = this.width
-	this.y = 0
+	this.x1 = 0
+	this.x2 = (this.block/width)|0
+
+	this.y1 = 0
+	this.y2 = (this.font/height)|0
 }
 
 Buffer.prototype = {
@@ -55,12 +67,13 @@ Buffer.prototype = {
 	save: save,
 	scroll: scroll,
 	render: render,
+	fromCharCode: String.fromCharCode,
 
 	// static
-	byteBlock: 13/1.66640,
-	fontSize: 13,
-	tabSize: 2,
-	fontFamily: 'monospace'
+	block: Math.round(13/1.666),
+	font: 13,
+	tab: 2,
+	family: 'monospace'
 }
 
 /**
@@ -114,7 +127,7 @@ function insert (string) {
 	if (string.length > 0)
 		// fill in each character
 		for (var i = 0; i < string.length; i++)
-			this.fill(string.charAt(i))
+			this.fill(string.charCodeAt(i))
 	// single character
 	else
 		this.fill(string)
@@ -163,7 +176,7 @@ function fill (char) {
 function expand () {
 	// exponatially grow, avoids frequent expansions
 	var size = this.size*2
-	var buff = Array(size)
+	var buff = new Uint8Array(size)
 
 	// leading characters
 	for (var i = 0; i < this.pre; i++)
@@ -190,25 +203,79 @@ function scroll (horizontal, vertical) {
 
 	// vertical
 	while (y-- > 0)
-		// move viewport up
-		if (vertical < 0)
-			while (this.y > 0)
-				if (this.buff[this.y--].charCodeAt(0) === 10)
-					break
-		// move viewport down
-		else
-			while (this.y < this.size)
-				if (this.buff[this.y++].charCodeAt(0) === 10)
-					break
+		vertical < 0 ? this.up(0) : this.down(0)
 
 	// horizontal
 	while (x-- > 0)
-		// move viewport left
-		if (horizontal < 0)
-			this.x--
-		// move viewport right
-		else
-			this.x++
+		horizontal < 0 ? this.left(0) : this.right(0)
+}
+
+/**
+ * up
+ * 
+ * @param {number} y
+ */
+function up () {
+	// move head up
+	if (y|0 <= 0)
+		while (this.y1 > 0)
+			if (this.buff[this.y1 = this.y1-- < this.post && this.y1 === this.post ? this.pre-1 : this.y1] === 10)
+				break
+
+	// move tail up
+	if (y|0 >= 0)
+		while (this.y2 > 0)
+			if (this.buff[this.y2 = this.y1-- < this.post && this.y1 === this.post ? this.pre-1 : this.y2] === 10)
+				break
+}
+
+/**
+ * down
+ * 
+ * @param {number} y
+ */
+function down (y) {
+	// move head down
+	if (y|0 <= 0)
+		while (this.y1 < this.size)
+			if (this.buff[this.y1 = this.y1++ < this.pre && this.y1 === this.pre ? this.post+1 : this.y1] === 10)
+				break
+
+	// move tail down
+	if (y|0 >= 0)
+		while (this.y2 < this.size)
+			if (this.buff[this.y2 = this.y1++ < this.pre && this.y1 === this.pre ? this.post+1 : this.y2] === 10)
+				break
+}
+
+/**
+ * left
+ * 
+ * @param {number} x
+ */
+function left (x) {
+	// move head left
+	if (x|0 <= 0 && this.x1-- > this.post && this.x1 === this.post)
+		this.x1 = this.pre-1
+
+	// move tail left
+	if (x|0 >= 0 && this.x2-- > this.post && this.x2 === this.post)
+		this.x2 = this.pre-1
+}
+
+/**
+ * right
+ * 
+ * @param {number} x
+ */
+function right (x) {
+	// move head right
+	if (x|0 <= 0 && this.x1++ < this.pre && this.x1 === this.pre)
+		this.x1 = this.post+1
+		
+	// move tail right
+	if (x|0 >= 0 && this.x2++ < this.pre && this.x2 === this.pre)
+		this.x2 = this.post+1	
 }
 
 /**
@@ -232,8 +299,8 @@ function save (location, distance) {
 		while (caret < this.pre)
 			// within range
 			if (travel > 0)
-				output += this.buff[(travel--, caret++)]
-			// end of range
+				output += this.fromCharCode(this.buff[(travel--, caret++)])
+			// out of range
 			else
 				break
 
@@ -241,9 +308,11 @@ function save (location, distance) {
 	if (this.post > 0 && (caret = this.size-this.post) > 0)
 		// visitor
 		while (caret < this.size)
+			// within range
 			if (travel > 0)
-				output += this.buff[(travel--, caret++)]
+				output += this.fromCharCode(this.buff[(travel--, caret++)])
 			else
+			// out of range
 				break
 
 	return output
@@ -317,18 +386,17 @@ function copy () {
  * and the cursor will only render when it the gap is part of the viewport
  */
 function render (xAxis, yAxis) {
-	var byte = ''
 	var buff = this.buff
 	var pre = this.pre
 	var post = this.post
 	var size = this.size
 	var length = pre
 
-	var line = this.lineHeight
-	var space = this.byteBlock
-	var tab = this.tabSize
+	var font = this.font
+	var block = this.block
+	var tab = this.tab
 	var x = xAxis|0
-	var y = yAxis|0+this.fontSize
+	var y = yAxis|0+this.font
 
 	var i = 0
 	var offset = 0
@@ -340,7 +408,7 @@ function render (xAxis, yAxis) {
 	if (this.width*this.height > 0)
 		context.clearRect(0, 0, this.width, this.height)
 
-	context.font = this.fontSize+'px '+this.fontFamily
+	context.font = font+'px '+this.family
 
 	// visitor
 	while (true) {
@@ -356,18 +424,18 @@ function render (xAxis, yAxis) {
 				i = (length = size)-post
 		}
 
-		switch (code = (byte = buff[i++]).charCodeAt(offset = 0)) {
+		switch (code = buff[(offset = 0, i++)]) {
 			// carriage
 			case 13:
 				continue
 			// newline
 			case 10:
-				y += line
+				y += font
 				x = 0
 				continue
 			// tab
 			case 9:
-				offset = tab*space
+				offset = tab*block
 				break
 			// operators
 			case 45:
@@ -379,9 +447,9 @@ function render (xAxis, yAxis) {
 				// 3. use some binary state to track when inside comments and strings 
 		}
 
-		context.fillText(byte, x, y)
+		context.fillText(this.fromCharCode(code), x, y)
 
-		x += offset+space
+		x += offset+block
 	}
 }
 
