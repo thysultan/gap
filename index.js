@@ -373,11 +373,13 @@ function render (xAxis, yAxis) {
 
 	context.font = font+'px '+this.family
 
+	var line = ''
+
 	// visitor
 	while (true) {
 		// x-axis breadth
-		if (x > breadth)
-			breadth = x
+		// if (x > breadth)
+		// 	breadth = x
 
 		// eof
 		if (i === length) {
@@ -395,25 +397,31 @@ function render (xAxis, yAxis) {
 			case 10:
 				y += font
 				x = 0
-				continue
+
+				if (xAxis >= 0)
+					context.fillText(line, x, y)
+					line = ''
+				break
+				// continue
 			// tab
 			case 9:
-				offset = tab*block
+				x += (offset = tab*block)+block
 				break
 			// operators
 			case 45:
 				// set default fill `context.fillStyle`
 			default:
+				x += offset+block
+
+				if (xAxis >= 0)
+					line += this.fromCharCode(code)
+					// context.fillText(this.fromCharCode(code), x, y)
+
 				// syntax highlighting in this case becomes much cheaper than an array of strings data-structure
 				// 1. numbers, operators etc are universal so we can archive that at no cost
 				// 2. lazily peak operator keywards to archive syntax highlighting on others
 				// 3. use some binary state to track when inside comments and strings 
 		}
-
-		if (xAxis >= 0)
-			context.fillText(this.fromCharCode(code), x, y)
-
-		x += offset+block
 	}
 
 	if (y >= canvasHeight) {
