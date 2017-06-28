@@ -508,7 +508,7 @@ var stop = false;
 				var i = 0
 				// insert 50 lines
 				while (i++<50)
-					heap.insert('This is a stress test everything is being render with every newline\n')
+					heap.insert('This is a stress test everything is being render with every newline, see console for more info\n')
 
 				// console.log('time it takes to insert lines of characters', performance.now()-start, 'ms')
 				// var start = performance.now()
