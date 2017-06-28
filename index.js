@@ -1,7 +1,7 @@
 var viewport = document.body
 var canvas = document.getElementById('canvas')
 var context = canvas.getContext('2d')
-var canvasHeight = canvas.height = viewport.offsetHeight
+var canvasHeight = canvas.height = ((32*1000)+768)-1//viewport.offsetHeight
 var canvasWidth = canvas.width = viewport.offsetWidth
 
 /**
@@ -451,7 +451,12 @@ function render (xAxis, yAxis) {
 
 		x += offset+block
 	}
+
+	if (y >= canvasHeight)
+		(stop = true, console.log('done - ' + ' ' + this.pre+this.post + ' characters printed'))
 }
+
+var stop = false;
 
 (function demo(){
 	var string = 'hello world'
@@ -469,7 +474,57 @@ function render (xAxis, yAxis) {
 			// -5 will remove the last 5 characters, 5 will remove next 5 characters
 			heap.remove(5)
 			heap.render(0)
+			heap.insert('\n')
 			console.log(heap.save(0, heap.pre+heap.post), heap)
-		}, 200)
-	}, 200)
+
+			var begin = performance.now()
+
+			setTimeout(function loop () {
+				// here i'm just testing the performance of
+				// parsing the whole world vs rendering the whole world
+				// ~ 32,000 lines
+				// ~ 17,000,000 characters
+				// 
+				// note on implementation detail
+				// - we won't actually render the whole world
+				// we will however need to parse the whole world
+				// so it's great this is a strong suit
+				// - when loading a file we will only need to render
+				// the view(how many characters can fit in the visible view)
+				// which is way smaller than 17 million characters
+				if (heap.pre+heap.post >= 1734110) {
+					stop = true
+					// ~46ms
+					console.log('parsed in', performance.now()-begin, 'ms')
+					begin = performance.now()
+					// ~977ms
+					heap.render()
+					console.log('rendered in', performance.now()-begin, 'ms')
+				}
+				else
+					// console.log(heap.pre+heap.post, 1734110, heap.pre+heap.post >= 1734110)
+				// this is a stress test, expect fans to spin
+				// var start = performance.now()
+				var i = 0
+				// insert 50 lines
+				while (i++<50)
+					heap.insert('This is a stress test everything is being render with every newline\n')
+
+				// console.log('time it takes to insert lines of characters', performance.now()-start, 'ms')
+				// var start = performance.now()
+				// heap.render()
+				// console.log('time it takes to render everything', performance.now()-start, 'ms')
+
+				// if you look at the console you will see that inserting
+				// new characters operates at a constant time
+				// while rendering the whole world grows with time
+				// which leads itself the idea of rendering just the visible 
+				// viewport at any given time
+				if (stop === false)
+					loop()
+					// requestAnimationFrame(loop)
+					// setTimeout(loop, 1000/16)
+			}, 0)
+		}, 0)
+	}, 0)
 })()
