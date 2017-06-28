@@ -36,27 +36,34 @@ function Buffer (size, width, height) {
 	this.post = 0
 
 	// buffer
-	this.size = size|0
+	this.size = (size|0)+10
 	this.buff = new Uint8Array(this.size)
 
 	// selection
-	this.select = new Array(0)
+	this.select = []
 
 	// dimension
 	this.width = width|0
 	this.height = height|0
 
-	// viewport
-	this.x1 = 0
-	this.x2 = (this.block/width)|0
+	this.line = 1
+	this.lines = 1
+	this.column = 1
+	this.length = 0
 
-	this.y1 = 0
-	this.y2 = (this.font/height)|0
+	// scroll
+	thix.x = 0
+	this.y = 0
+
+	// history
+	this.history = []
+	this.time = 0
 }
 
 Buffer.prototype = {
 	// methods
 	move: move,
+	step: step,
 	jump: jump,
 	insert: insert,
 	remove: remove,
@@ -65,7 +72,6 @@ Buffer.prototype = {
 	select: select,
 	copy: copy,
 	save: save,
-	scroll: scroll,
 	render: render,
 	fromCharCode: String.fromCharCode,
 
@@ -77,43 +83,92 @@ Buffer.prototype = {
 }
 
 /**
- * move
- * 
- * @param {number}
+ * stemp
+ * @param {number} value
  * @return {void}
  */
-function move (distance) {
-	// retrieve unsigned integer
-	var caret = distance < 0 ? ~distance+1 : distance|0
-
-	// travel distance
-	while (caret-- > 0)
-		// backward
-		if (distance > 0)
-			// within bounds
-			if (this.post > 0)
-				this.buff[this.pre++] = this.buff[this.size-this.post++]
-			// out of bounds
-			else
-				break
+function step (value) {
+	switch (value|0) {
 		// forward
-		else
-			// within bounds
+		case 0:
+			if (this.post > 0)
+				this.buff[this.pre++] = this.buff[this.size-this.post--]
+				break
+		// backward
+		case 1:
 			if (this.pre > 0)
 				this.buff[this.size-(this.post++)-1] = this.buff[(this.pre--)-1]
-			// out of bounds
-			else
-				break
+	}
+}
+
+/**
+ * move
+ * 
+ * @param {number} value
+ * @return {void}
+ */
+function move (value) {
+	// retrieve unsigned integer
+	var length = value|0
+	var index = length < 0 ? ~length+1 : length
+
+	// forward
+	if (length > 0)
+		// visitor
+		while (index-- > 0)
+			this.step(0)
+	// backward
+	else
+		// visitor
+		while (index-- > 0)
+			this.step(1)
 }
 
 /**
  * jump
  * 
- * @param {number}
+ * @param {number} index
  * @return {void}
  */
-function jump (location) {
-	this.move(location|0-this.pre)
+function jump (index) {
+	this.move(index|0-this.pre)
+}
+
+/**
+ * fill
+ * 
+ * @param {number} code
+ * @param {number} length
+ * @return {void}
+ */
+function fill (code, length) {
+	switch (length|0) {
+		// insert
+		case 0: 
+			// not enough space?
+			if (this.pre + this.post === this.size)
+				this.expand()
+
+			// push
+			switch (this.buff[this.pre++] = code) {
+				case 10:
+					this.lines++
+				default:
+					this.length++
+			}
+
+			break
+		// remove
+		case 1:
+			switch (code) {
+				case 10:
+					this.lines--
+				default:
+					this.length--
+			}
+
+			break
+	}
 }
 
 /**
@@ -127,46 +182,38 @@ function insert (string) {
 	if (string.length > 0)
 		// fill in each character
 		for (var i = 0; i < string.length; i++)
-			this.fill(string.charCodeAt(i))
+			this.fill(string.charCodeAt(i), 0)
 	// single character
 	else
-		this.fill(string)
+		this.fill(string.charCodeAt(0), 0)
 }
 
 /**
  * remove
  * 
- * @param {number} distance
+ * @param {number} value
  * @return {void}
  */
-function remove (distance) {
+function remove (value) {
 	// retrieve unsigned integer
-	var caret = distance < 0 ? ~distance+1 : distance|0
+	var length = value|0
+	var index = length < 0 ? ~length+1 : length
 
 	// visitor
-	while (caret-- > 0)
+	while (index-- > 0)
 		// shift
-		if (distance < 0)
-			this.pre > 0 ? this.pre-- : caret = 0
+		if (value < 0)
+			if (this.pre > 0)
+				this.fill(this.buff[this.pre--], 1)
+			else
+				break
 		// pop
 		else
-			this.post > 0 ? this.post-- : caret = 0
+			if (this.post > 0)
+				this.fill(this.buff[this.post--], 1)
+			else
+				break
  }
-
-/**
- * fill
- * 
- * @param {string} char
- * @return {void}
- */
-function fill (char) {
-	// not enough space?
-	if (this.pre + this.post === this.size)
-		this.expand()
-
-	// fill in character
-	this.buff[this.pre++] = char
-}
 
 /**
  * expand
@@ -191,126 +238,38 @@ function expand () {
 }
 
 /**
- * scroll
- * 
- * @param {number} horizontal
- * @param {number} vertical
- */
-function scroll (horizontal, vertical) {
-	// retrieve unsigned integer
-	var x = horizontal < 0 ? ~horizontal+1 : horizontal|0
-	var y = vertical < 0 ? ~vertical+1 : vertical|0
-
-	// vertical
-	while (y-- > 0)
-		vertical < 0 ? this.up(0) : this.down(0)
-
-	// horizontal
-	while (x-- > 0)
-		horizontal < 0 ? this.left(0) : this.right(0)
-}
-
-/**
- * up
- * 
- * @param {number} y
- */
-function up () {
-	// move head up
-	if (y|0 <= 0)
-		while (this.y1 > 0)
-			if (this.buff[this.y1 = this.y1-- < this.post && this.y1 === this.post ? this.pre-1 : this.y1] === 10)
-				break
-
-	// move tail up
-	if (y|0 >= 0)
-		while (this.y2 > 0)
-			if (this.buff[this.y2 = this.y1-- < this.post && this.y1 === this.post ? this.pre-1 : this.y2] === 10)
-				break
-}
-
-/**
- * down
- * 
- * @param {number} y
- */
-function down (y) {
-	// move head down
-	if (y|0 <= 0)
-		while (this.y1 < this.size)
-			if (this.buff[this.y1 = this.y1++ < this.pre && this.y1 === this.pre ? this.post+1 : this.y1] === 10)
-				break
-
-	// move tail down
-	if (y|0 >= 0)
-		while (this.y2 < this.size)
-			if (this.buff[this.y2 = this.y1++ < this.pre && this.y1 === this.pre ? this.post+1 : this.y2] === 10)
-				break
-}
-
-/**
- * left
- * 
- * @param {number} x
- */
-function left (x) {
-	// move head left
-	if (x|0 <= 0 && this.x1-- > this.post && this.x1 === this.post)
-		this.x1 = this.pre-1
-
-	// move tail left
-	if (x|0 >= 0 && this.x2-- > this.post && this.x2 === this.post)
-		this.x2 = this.pre-1
-}
-
-/**
- * right
- * 
- * @param {number} x
- */
-function right (x) {
-	// move head right
-	if (x|0 <= 0 && this.x1++ < this.pre && this.x1 === this.pre)
-		this.x1 = this.post+1
-		
-	// move tail right
-	if (x|0 >= 0 && this.x2++ < this.pre && this.x2 === this.pre)
-		this.x2 = this.post+1	
-}
-
-/**
  * save
  *
- * @param {number} location
- * @param {number} distance
+ * @param {number} i
+ * @param {number} len
  * @return {string}
  */
-function save (location, distance) {
+function save (i, len) {
 	// retrieve integer
-	var caret = location|0
-	var travel = distance|0
-	
+	var length = len|0
+	var index = i|0
+
 	// setup destination buffer
 	var output = ''
 
 	// leading characters
 	if (this.pre > 0)
 		// visitor
-		while (caret < this.pre)
+		while (index < this.pre)
 			// within range
-			if (travel > 0)
-				output += this.fromCharCode(this.buff[(travel--, caret++)])
+			if (length > 0)
+				output += this.fromCharCode(this.buff[(length--, index++)])
 			// out of range
 			else
 				break
 
 	// tailing characters
-	if (this.post > 0 && (caret = this.size-this.post) > 0)
+	if (this.post > 0 && (index = this.size-this.post) > 0)
 		// visitor
-		while (caret < this.size)
+		while (index < this.size)
 			// within range
-			if (travel > 0)
-				output += this.fromCharCode(this.buff[(travel--, caret++)])
+			if (length > 0)
+				output += this.fromCharCode(this.buff[(length--, index++)])
 			else
 			// out of range
 				break
@@ -320,7 +279,11 @@ function save (location, distance) {
 
 /**
  * select
- * 
+ *
+ * @param {number} x1
+ * @param {number} x2
+ * @param {number} y1
+ * @param {number} y2
  * @return {void}
  */
 function select (x1, y1, x2, y2) {
@@ -447,13 +410,18 @@ function render (xAxis, yAxis) {
 				// 3. use some binary state to track when inside comments and strings 
 		}
 
-		context.fillText(this.fromCharCode(code), x, y)
+		if (xAxis >= 0)
+			context.fillText(this.fromCharCode(code), x, y)
 
 		x += offset+block
 	}
 
-	if (y >= canvasHeight)
-		(stop = true, console.log('done - ' + ' ' + this.pre+this.post + ' characters printed, '+y/font+' lines'))
+	if (y >= canvasHeight) {
+		stop = true
+		setTimeout(() => {
+			 console.log('world:', + (this.pre+this.post) + ' characters,', y/font+' lines')
+		})
+	}
 }
 
 var stop = false;
@@ -466,20 +434,27 @@ var stop = false;
 	heap.render(0, 0)
 
 	setTimeout(() => {
-		heap.move(-2)
+		heap.move(-4)
 		heap.insert('.')
+		heap.move(2)
+		heap.insert('/')
 		heap.render(0, 0)
+
+		// console.log(heap.save(0, heap.pre+heap.post), heap)
+		// return;
 
 		setTimeout(()=> {
 			// -5 will remove the last 5 characters, 5 will remove next 5 characters
-			heap.remove(5)
-			heap.render(0)
+			// heap.remove(5)
+
+			heap.render(0, 0)
+			heap.move(20)
 			heap.insert('\n')
 			console.log(heap.save(0, heap.pre+heap.post), heap)
 
-			var begin = performance.now()
+			var begin = performance.now();
 
-			setTimeout(function loop () {
+			(function loop () {
 				// here i'm just testing the performance of
 				// parsing the whole world vs rendering the whole world
 				// ~ 32,000 lines
@@ -494,12 +469,31 @@ var stop = false;
 				// which is way smaller than 17 million characters
 				if (heap.pre+heap.post >= 1734110) {
 					stop = true
-					// ~46ms
-					console.log('parsed in', performance.now()-begin, 'ms')
+					
+					// insert world ~46ms
+					console.log('insert world: -> ', performance.now()-begin, 'ms')
+
+					// move world
+					begin = performance.now()
+					heap.move(-(heap.pre+heap.post))
+					console.log('move world:', performance.now()-begin, 'ms')
+
+					// scroll up
+					// begin = performance.now()
+					// heap.scroll(0, -20)
+					// console.log('scroll: world -> ', performance.now()-begin, 'ms')
+
+					// render world
 					begin = performance.now()
 					// ~977ms
-					heap.render()
-					console.log('rendered in', performance.now()-begin, 'ms')
+					heap.render(-1, 0)
+					console.log('render world(textual): -> ', performance.now()-begin, 'ms')
+
+					// render world
+					begin = performance.now()
+					// ~977ms
+					heap.render(0, 0)
+					console.log('render world(visible): -> ', performance.now()-begin, 'ms')
 				}
 				else
 					// console.log(heap.pre+heap.post, 1734110, heap.pre+heap.post >= 1734110)
@@ -524,7 +518,8 @@ var stop = false;
 					loop()
 					// requestAnimationFrame(loop)
 					// setTimeout(loop, 1000/16)
-			}, 0)
+			})()
+
 		}, 0)
 	}, 0)
 })()
