@@ -102,12 +102,18 @@ function step (value) {
 		// forward
 		case 0:
 			if (this.post > 0)
-				this.buff[this.pre++] = this.buff[this.size-this.post--]
-				break
+				switch (this.buff[this.pre++] = this.buff[this.size-this.post--]) {
+					case 10:
+						this.line++
+				}
+			break
 		// backward
 		case 1:
 			if (this.pre > 0)
-				this.buff[this.size-(this.post++)-1] = this.buff[(this.pre--)-1]
+				switch (this.buff[this.size-(this.post++)-1] = this.buff[(this.pre--)-1]) {
+					case 10:
+						this.line--
+				}
 	}
 }
 
@@ -342,6 +348,9 @@ function seek (h, v) {
 		while ((x -= this.context.measureText(String.fromCharCode(this.buff[i])).width) > 0)
 			i++
 
+	var line = this.line
+	this.jump(i)
+
 	console.log(String.fromCharCode(this.buff[i]))
 }
 
@@ -501,27 +510,27 @@ var start = 0;
 		heap.insert(input)
 
 		// insert ~40ms
-		// console.log('insert:', performance.now()-begin, 'ms')
+		console.log('insert:', performance.now()-begin, 'ms')
 
 		// // move ~15ms
-		// begin = performance.now()
-		// heap.move(-(heap.pre+heap.post))
-		// console.log('move*:', performance.now()-begin, 'ms')
+		begin = performance.now()
+		heap.move(-(heap.pre+heap.post))
+		console.log('move*:', performance.now()-begin, 'ms')
 
 		// // render ~10ms
 		begin = performance.now()
 		heap.render()
 		console.log('render:', performance.now()-begin, 'ms')
 
-		// // save ~ms
-		// begin = performance.now()
-		// heap.toString()
-		// console.log('save:', performance.now()-begin, 'ms')
+		// save ~ms
+		begin = performance.now()
+		heap.toString()
+		console.log('save:', performance.now()-begin, 'ms')
 		
-		// console.log('insert + move + render + save:', performance.now()-start, 'ms')
-		// console.log('')
-		// console.log('*move = moving from the very bottom to the top,')
-		// console.log(`stats:${heap.length} characters, ${heap.lines} lines`)
+		console.log('insert + move + render + save:', performance.now()-start, 'ms')
+		console.log('')
+		console.log('*move = moving from the very bottom to the top,')
+		console.log(`stats:${heap.length} chars, ${heap.lines} lines`)
 	}
 
 	var heap = new Buffer(input.length, window.innerWidth, window.innerHeight)
