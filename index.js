@@ -78,7 +78,8 @@ Buffer.prototype = {
 	copy: copy,
 	render: render,
 	setup: setup,
-	scroll: scroll,
+	find: find,
+	seek: seek,
 
 	toString: toString,
 	fromCharCode: String.fromCharCode,
@@ -323,19 +324,49 @@ function copy () {
 function setup (canvas, context) {	
 	canvas.width = this.width
 	canvas.height = this.height
+	canvas.style.cursor = 'text'
 	context.font = this.font+'px '+this.family
 }
 
-/**
- * scroll
- * 
- * @param {number} horizontal
- * @param {number} vertical
- */
-function scroll (x, y) {
-	var x = horizontal|0
-	var y = vertical|0
+function seek (h, v) {
+	var x = h|0
+	var y = v|0
 	var i = this.i
+
+	if (y > this.font)
+		// go to line
+		while ((y -= this.font) > 0) 
+			i = this.find(i, 10)
+
+	if (x > 0)
+		while ((x -= this.context.measureText(String.fromCharCode(this.buff[i])).width) > 0)
+			i++
+
+	console.log(String.fromCharCode(this.buff[i]))
+}
+
+/**
+ * find
+ *
+ * @param {number} index
+ * @param {number} value
+ */
+function find (index, value) {
+	var i = index|0
+
+	while (i < this.size)
+		if (value|0 >= 0)
+			switch (this.buff[i++]) {
+				case value|0:
+					return i
+			}
+		else
+			switch (this.buff[i++]) {
+				case ~value+1:
+					return i
+			}
+
+	return i
 }
 
 /**
@@ -406,10 +437,7 @@ function render () {
 	var height = this.height+font
 	var width = this.width+block
 
-	var x = this.x
-	var y = this.y
-	var i = this.y
-
+	var i = this.i
 	var h = font
 	var w = 0
 	var j = 0
@@ -463,7 +491,7 @@ var start = 0;
 (function demo(){
 	var input = ''
 	var i = 0
-	var template = `This is a stress test where every single line is being rendered with as much text, see console for more information about the time it took to render this\n`
+	var template = `This is a stress test where every single line is being rendered with as much text, see console\n`
 
 	while (i++<3000) {
 		input += template;
@@ -473,27 +501,27 @@ var start = 0;
 		heap.insert(input)
 
 		// insert ~40ms
-		console.log('insert:', performance.now()-begin, 'ms')
+		// console.log('insert:', performance.now()-begin, 'ms')
 
-		// move ~15ms
-		begin = performance.now()
-		heap.move(-(heap.pre+heap.post))
-		console.log('move*:', performance.now()-begin, 'ms')
+		// // move ~15ms
+		// begin = performance.now()
+		// heap.move(-(heap.pre+heap.post))
+		// console.log('move*:', performance.now()-begin, 'ms')
 
-		// render ~10ms
+		// // render ~10ms
 		begin = performance.now()
 		heap.render()
 		console.log('render:', performance.now()-begin, 'ms')
 
-		// save ~ms
-		begin = performance.now()
-		heap.toString()
-		console.log('save:', performance.now()-begin, 'ms')
+		// // save ~ms
+		// begin = performance.now()
+		// heap.toString()
+		// console.log('save:', performance.now()-begin, 'ms')
 		
-		console.log('insert + move + render + save:', performance.now()-start, 'ms')
-		console.log('')
-		console.log('*move = moving from the very bottom to the top,')
-		console.log(`stats:${heap.length} characters, ${heap.lines} lines`)
+		// console.log('insert + move + render + save:', performance.now()-start, 'ms')
+		// console.log('')
+		// console.log('*move = moving from the very bottom to the top,')
+		// console.log(`stats:${heap.length} characters, ${heap.lines} lines`)
 	}
 
 	var heap = new Buffer(input.length, window.innerWidth, window.innerHeight)
@@ -501,4 +529,16 @@ var start = 0;
 	begin = start = performance.now()
 
 	body()
+
+	// requestAnimationFrame(function loop () {
+		// heap.scroll(20)
+		// heap.insert(input)
+		
+	canvas.addEventListener('mousedown', function (e) {
+		heap.seek(e.x, e.y)
+		heap.render()
+	})
+
+		// setTimeout(loop, 1000)
+	// })
 })()
