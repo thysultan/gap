@@ -95,16 +95,18 @@ Buffer.prototype = {
  * step
  * 
  * @param {number} value
+ * @param {number} live
  * @return {void}
  */
-function step (value) {
+function step (value, live) {
 	switch (value|0) {
 		// forward
 		case 0:
 			if (this.post > 0)
 				switch (this.buff[this.pre++] = this.buff[this.size-this.post--]) {
 					case 10:
-						this.line++
+						if (live|0 > 0)
+							this.line++
 				}
 			break
 		// backward
@@ -112,7 +114,8 @@ function step (value) {
 			if (this.pre > 0)
 				switch (this.buff[this.size-(this.post++)-1] = this.buff[(this.pre--)-1]) {
 					case 10:
-						this.line--
+						if (live|0 > 0)
+							this.line--
 				}
 	}
 }
@@ -121,9 +124,10 @@ function step (value) {
  * move
  * 
  * @param {number} value
+ * @param {number} live
  * @return {void}
  */
-function move (value) {
+function move (value, live) {
 	// retrieve unsigned integer
 	var length = value|0
 	var index = length < 0 ? ~length+1 : length
@@ -132,22 +136,23 @@ function move (value) {
 	if (length > 0)
 		// visitor
 		while (index-- > 0)
-			this.step(0)
+			this.step(0, live)
 	// backward
 	else
 		// visitor
 		while (index-- > 0)
-			this.step(1)
+			this.step(1, live)
 }
 
 /**
  * jump
  * 
  * @param {number} index
+ * @param {number} live
  * @return {void}
  */
-function jump (index) {
-	this.move(index|0-this.pre)
+function jump (index, live) {
+	this.move(index|0-this.pre, live)
 }
 
 /**
@@ -349,7 +354,14 @@ function seek (h, v) {
 			i++
 
 	var line = this.line
-	this.jump(i)
+
+	console.log(this.pre, this.post, this.line)
+	
+	this.jump(0, 0)
+	this.jump(i, 1)
+
+	// heap.move(-(heap.pre+heap.post), )
+	console.log(this.pre, this.post, this.line)
 
 	console.log(String.fromCharCode(this.buff[i]))
 }
@@ -513,9 +525,9 @@ var start = 0;
 		console.log('insert:', performance.now()-begin, 'ms')
 
 		// // move ~15ms
-		begin = performance.now()
-		heap.move(-(heap.pre+heap.post))
-		console.log('move*:', performance.now()-begin, 'ms')
+		// begin = performance.now()
+		// heap.move(-(heap.pre+heap.post), )
+		// console.log('move*:', performance.now()-begin, 'ms')
 
 		// // render ~10ms
 		begin = performance.now()
