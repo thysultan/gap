@@ -39,9 +39,6 @@ function Buffer (size, width, height) {
 	this.size = (size|0)+10
 	this.buff = new Uint8Array(this.size)
 
-	// selection
-	this.select = []
-
 	// dimension
 	this.width = width|0
 	this.height = height|0
@@ -51,13 +48,21 @@ function Buffer (size, width, height) {
 	this.column = 1
 	this.length = 0
 
-	// scroll
+	// viewport
 	this.x = 0
 	this.y = 0
+	this.i = 0
+	this.o = []
+
+	// selection
+	this.select = []
 
 	// history
 	this.history = []
-	this.time = 0
+	this.timeline = 0
+
+	// context
+	this.context = null
 }
 
 Buffer.prototype = {
@@ -71,8 +76,11 @@ Buffer.prototype = {
 	expand: expand,
 	select: select,
 	copy: copy,
-	save: save,
 	render: render,
+	setup: setup,
+	scroll: scroll,
+
+	toString: toString,
 	fromCharCode: String.fromCharCode,
 
 	// static
@@ -83,7 +91,8 @@ Buffer.prototype = {
 }
 
 /**
- * stemp
+ * step
+ * 
  * @param {number} value
  * @return {void}
  */
@@ -238,15 +247,15 @@ function expand () {
 }
 
 /**
- * save
+ * toString
  *
  * @param {number} i
- * @param {number} len
+ * @param {number} value
  * @return {string}
  */
-function save (i, len) {
+function toString (i, value) {
 	// retrieve integer
-	var length = len|0
+	var length = typeof value === 'number' ? value|0 : this.length
 	var index = i|0
 
 	// setup destination buffer
@@ -306,6 +315,30 @@ function copy () {
 }
 
 /**
+ * setup
+ *
+ * @param {Node} canvas
+ * @param {CanvasRenderingContext2D} context
+ */
+function setup (canvas, context) {	
+	canvas.width = this.width
+	canvas.height = this.height
+	context.font = this.font+'px '+this.family
+}
+
+/**
+ * scroll
+ * 
+ * @param {number} horizontal
+ * @param {number} vertical
+ */
+function scroll (x, y) {
+	var x = horizontal|0
+	var y = vertical|0
+	var i = this.i
+}
+
+/**
  * render
  * 
  * @param {number} xAxis
@@ -348,186 +381,124 @@ function copy () {
  * when after we render the world if the position is within the viewport
  * and the cursor will only render when it the gap is part of the viewport
  */
-function render (xAxis, yAxis) {
+function render () {
+	var context = this.context
+
+	if (context === null)
+		return
+
+	this.setup(context.canvas, context)
+
 	var buff = this.buff
 	var pre = this.pre
 	var post = this.post
 	var size = this.size
-	var length = pre
+	var length = this.length
+
+	var line = this.line
+	var lines = this.lines
+	var column = this.column
 
 	var font = this.font
 	var block = this.block
 	var tab = this.tab
-	var x = xAxis|0
-	var y = yAxis|0+this.font
 
-	var i = 0
-	var offset = 0
+	var height = this.height+font
+	var width = this.width+block
+
+	var x = this.x
+	var y = this.y
+	var i = this.y
+
+	var h = font
+	var w = 0
+	var j = 0
+
+	var offset = 1
 	var code = 0
-	var gap = 0	
-	var breadth = 0
+	var index = 0
 
-	// setup
-	if (this.width*this.height > 0)
-		context.clearRect(0, 0, this.width, this.height)
+	var token = ''
+	var bytes = new Array((height/font|0)<<1)
 
-	context.font = font+'px '+this.family
-
-	var line = ''
-
-	// visitor
-	while (true) {
-		// x-axis breadth
-		// if (x > breadth)
-		// 	breadth = x
-
-		// eof
-		if (i === length) {
-			if (post === 0 || gap++ > 0)
-				break
-			else
-				i = (length = size)-post
-		}
-
-		switch (code = buff[(offset = 0, i++)]) {
-			// carriage
-			case 13:
-				continue
-			// newline
+	while (index < length && h < height && i < size)
+		switch (code = buff[i === pre ? (i = size-post, i++) : i++]) {
 			case 10:
-				y += font
-				x = 0
+				h += font
+			case 32:
+				if (token.length > 0)
+					bytes[j++] = token
 
-				if (xAxis >= 0)
-					context.fillText(line, x, y)
-					line = ''
+				bytes[j++] = String.fromCharCode(code)
+				token = ''
 				break
-				// continue
-			// tab
-			case 9:
-				x += (offset = tab*block)+block
-				break
-			// operators
-			case 45:
-				// set default fill `context.fillStyle`
 			default:
-				x += offset+block
-
-				if (xAxis >= 0)
-					line += this.fromCharCode(code)
-					// context.fillText(this.fromCharCode(code), x, y)
-
-				// syntax highlighting in this case becomes much cheaper than an array of strings data-structure
-				// 1. numbers, operators etc are universal so we can archive that at no cost
-				// 2. lazily peak operator keywards to archive syntax highlighting on others
-				// 3. use some binary state to track when inside comments and strings 
+				token += String.fromCharCode(code)
 		}
-	}
 
-	if (y >= canvasHeight) {
-		stop = true
-		setTimeout(() => {
-			 console.log('world:', + (this.pre+this.post) + ' characters,', y/font+' lines')
-		})
-	}
+	length = j
+	h = font
+	i = 0
+
+	while (i < length) {
+		switch (token = bytes[i++]) {
+			case '\n':
+				h += font
+				w = 0
+				break
+			default: 
+				if (w > width)
+					break
+
+				context.fillText(token, w, h)
+				w += context.measureText(token).width
+		}
+	}		
 }
 
 var stop = false;
+var begin = 0;
+var start = 0;
 
 (function demo(){
-	var string = 'hello world'
-	var heap = new Buffer(string.length, canvasWidth, canvasHeight)
+	var input = ''
+	var i = 0
+	var template = `This is a stress test where every single line is being rendered with as much text, see console for more information about the time it took to render this\n`
 
-	heap.insert(string)
-	heap.render(0, 0)
+	while (i++<3000) {
+		input += template;
+	}
 
-	setTimeout(() => {
-		heap.move(-4)
-		heap.insert('.')
-		heap.move(2)
-		heap.insert('/')
-		heap.render(0, 0)
+	function body () {
+		heap.insert(input)
 
-		// console.log(heap.save(0, heap.pre+heap.post), heap)
-		// return;
+		// insert ~40ms
+		console.log('insert:', performance.now()-begin, 'ms')
 
-		setTimeout(()=> {
-			// -5 will remove the last 5 characters, 5 will remove next 5 characters
-			// heap.remove(5)
+		// move ~15ms
+		begin = performance.now()
+		heap.move(-(heap.pre+heap.post))
+		console.log('move*:', performance.now()-begin, 'ms')
 
-			heap.render(0, 0)
-			heap.move(20)
-			heap.insert('\n')
-			console.log(heap.save(0, heap.pre+heap.post), heap)
+		// render ~10ms
+		begin = performance.now()
+		heap.render()
+		console.log('render:', performance.now()-begin, 'ms')
 
-			var begin = performance.now();
+		// save ~ms
+		begin = performance.now()
+		heap.toString()
+		console.log('save:', performance.now()-begin, 'ms')
+		
+		console.log('insert + move + render + save:', performance.now()-start, 'ms')
+		console.log('')
+		console.log('*move = moving from the very bottom to the top,')
+		console.log(`stats:${heap.length} characters, ${heap.lines} lines`)
+	}
 
-			(function loop () {
-				// here i'm just testing the performance of
-				// parsing the whole world vs rendering the whole world
-				// ~ 32,000 lines
-				// ~ 17,000,000 characters
-				// 
-				// note on implementation detail
-				// - we won't actually render the whole world
-				// we will however need to parse the whole world
-				// so it's great this is a strong suit
-				// - when loading a file we will only need to render
-				// the view(how many characters can fit in the visible view)
-				// which is way smaller than 17 million characters
-				if (heap.pre+heap.post >= 1734110) {
-					stop = true
-					
-					// insert world ~46ms
-					console.log('insert world: -> ', performance.now()-begin, 'ms')
+	var heap = new Buffer(input.length, window.innerWidth, window.innerHeight)
+	heap.context = context
+	begin = start = performance.now()
 
-					// move world
-					begin = performance.now()
-					heap.move(-(heap.pre+heap.post))
-					console.log('move world:', performance.now()-begin, 'ms')
-
-					// scroll up
-					// begin = performance.now()
-					// heap.scroll(0, -20)
-					// console.log('scroll: world -> ', performance.now()-begin, 'ms')
-
-					// render world
-					begin = performance.now()
-					// ~977ms
-					heap.render(-1, 0)
-					console.log('render world(textual): -> ', performance.now()-begin, 'ms')
-
-					// render world
-					begin = performance.now()
-					// ~977ms
-					heap.render(0, 0)
-					console.log('render world(visible): -> ', performance.now()-begin, 'ms')
-				}
-				else
-					// console.log(heap.pre+heap.post, 1734110, heap.pre+heap.post >= 1734110)
-				// this is a stress test, expect fans to spin
-				// var start = performance.now()
-				var i = 0
-				// insert 50 lines
-				while (i++<50)
-					heap.insert('This is a stress test everything is being render with every newline, see console for more info\n')
-
-				// console.log('time it takes to insert lines of characters', performance.now()-start, 'ms')
-				// var start = performance.now()
-				// heap.render()
-				// console.log('time it takes to render everything', performance.now()-start, 'ms')
-
-				// if you look at the console you will see that inserting
-				// new characters operates at a constant time
-				// while rendering the whole world grows with time
-				// which leads itself the idea of rendering just the visible 
-				// viewport at any given time
-				if (stop === false)
-					loop()
-					// requestAnimationFrame(loop)
-					// setTimeout(loop, 1000/16)
-			})()
-
-		}, 0)
-	}, 0)
+	body()
 })()
