@@ -681,7 +681,7 @@ function step (value) {
 		console.log(`stats: ${heap.length} chars, ${heap.lines} lines`)
 	}
 
-	var heap = new Buffer(input.length, 0, (13*2)+6)
+	var heap = new Buffer(input.length, 0, (13*2)+9)
 	heap.context = context
 
 	begin = performance.now()
