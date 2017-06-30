@@ -64,7 +64,7 @@ Buffer.prototype = {
 	select: select,
 	copy: copy,
 	find: find,
-	peak: peak,
+	peek: peek,
 
 	// static
 	block: Math.round(13/1.666),
@@ -138,14 +138,14 @@ function move (value) {
 }
 
 /**
- * peak
+ * peek
  *
  * @desc retrieve character index at coordinates {x, y} 
  * 
  * @param {Object} value
  * @return {number}
  */
-function peak (value) {
+function peek (value) {
 	var x = value.x|0
 	var y = value.y|0
 	var i = 0
@@ -392,7 +392,7 @@ function render () {
 	var code = 0
 	var index = 0
 	var head = 0
-	var tail = 0
+	var tail = -1
 
 	// memory
 	var token = ''
@@ -456,7 +456,7 @@ function render () {
 	// this will be both very fast and very extendable. 
 	// 
 	while (index < length && i < size && h < height)
-		switch (tail = code, code = buff[i === pre ? (i = size-post, i++) : i++]) {
+		switch (code = buff[i === pre ? (i = size-post, i++) : i++]) {
 			// newline
 			case 10:
 				h += font
@@ -467,7 +467,8 @@ function render () {
 						d = h,
 						h = font
 					else
-						head = index
+						tail = head+1,
+						head = index+1
 			// tabs
 			case 9:
 			// space
@@ -503,12 +504,20 @@ function render () {
 
 	length = index
 	index = head
-	
-	w = 0
 	h = 0 - (j-d)
-
+	
 	// draw
-	while (index < length) {
+	while (tail < head)
+		// non-viewport
+		if (w > width)
+			break
+		else
+			context.fillText(token = bytes[tail++], w, h),
+			w += context.measureText(token).width
+
+	w = 0
+
+	while (index < length)
 		switch (token = bytes[index++]) {
 			case '\n':
 				h += font
@@ -522,7 +531,6 @@ function render () {
 				context.fillText(token, w, h)
 				w += context.measureText(token).width
 		}
-	}		
 }
 
 function handleEvent (e) {
@@ -673,7 +681,7 @@ function step (value) {
 		console.log(`stats: ${heap.length} chars, ${heap.lines} lines`)
 	}
 
-	var heap = new Buffer(input.length, 0, (13*2)+2)
+	var heap = new Buffer(input.length, 0, (13*2)+6)
 	heap.context = context
 
 	begin = performance.now()
