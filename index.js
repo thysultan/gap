@@ -7,66 +7,53 @@ var canvasWidth = canvas.width = viewport.offsetWidth
 /**
  * buffer
  *
- * gap buffer
+ * @desc
  *
- * [1, 2, 3, _, 5] init
- *           
- * [1, 2, 3, 4, 5] inset
- *
- * [1, 2, 3, _, _] remove
- *
- * [1, 2, _, 3, 5] move
- *
- * [1, 2, 3, _, _, _, _, _, 5] alloc larger(2N) buffer
+ * 	[1, 2, 3, _, 5] init
+ *  [1, 2, 3, 4, 5] inset
+ * 	[1, 2, 3, _, _] remove
+ * 	[1, 2, _, 3, 5] move
+ *  [1, 2, 3, _, _, _, _, _, 5] alloc larger(2N) buffer
  * 
  * @param {number} size
- * @param {number} width
- * @param {number} height
- *
- * @todo explore a Unsigned Typed Array of character codes
- * which would the speed of operations that happen before rendering
- * though using String.fromCharCode() when rendering might increase
- * the speed of operations when rendering,
- * but rendering is constant time (N) where N is the # of characters that can fit
- * in on the visible screen
+ * @param {number} x
+ * @param {number} y
  */
-function Buffer (size, width, height) {
+function Buffer (size, x, y) {
 	// cursor
 	this.pre = 0
 	this.post = 0
 
 	// buffer
-	this.size = (size|0)+10
+	this.size = (size|0)+100
 	this.buff = new Uint8Array(this.size)
 
 	// dimension
-	this.width = width|0
-	this.height = height|0
+	this.width = 0
+	this.height = 0
 
+	// meta
 	this.line = 1
 	this.lines = 1
 	this.column = 1
 	this.length = 0
 
 	// viewport
-	this.x = 0
-	this.y = 0
-	this.i = 0
-	this.o = []
+	this.x = x|0
+	this.y = y|0
 
 	// selection
 	this.select = []
 
 	// history
 	this.history = []
-	this.timeline = 0
 
 	// context
 	this.context = null
 }
 
 Buffer.prototype = {
-	// methods
+	// method
 	move: move,
 	step: step,
 	jump: jump,
@@ -76,37 +63,45 @@ Buffer.prototype = {
 	expand: expand,
 	select: select,
 	copy: copy,
-	render: render,
-	setup: setup,
 	find: find,
-	seek: seek,
-
-	toString: toString,
-	fromCharCode: String.fromCharCode,
+	peak: peak,
 
 	// static
 	block: Math.round(13/1.666),
 	font: 13,
 	tab: 2,
-	family: 'monospace'
+	family: 'monospace',
+
+	// memory
+	bytes: new Array(1000),
+	bits: new Uint8Array(1000),
+
+	// paint
+	render: render,
+
+	// utilities
+	toString: toString,
+	fromCharCode: String.fromCharCode,
+
+	// event
+	handleEvent: handleEvent,
+	addEventListener: addEventListener
 }
 
 /**
  * step
  * 
  * @param {number} value
- * @param {number} live
  * @return {void}
  */
-function step (value, live) {
+function step (value) {
 	switch (value|0) {
 		// forward
 		case 0:
 			if (this.post > 0)
 				switch (this.buff[this.pre++] = this.buff[this.size-this.post--]) {
 					case 10:
-						if (live|0 > 0)
-							this.line++
+						this.line++
 				}
 			break
 		// backward
@@ -114,8 +109,7 @@ function step (value, live) {
 			if (this.pre > 0)
 				switch (this.buff[this.size-(this.post++)-1] = this.buff[(this.pre--)-1]) {
 					case 10:
-						if (live|0 > 0)
-							this.line--
+						this.line--
 				}
 	}
 }
@@ -124,10 +118,9 @@ function step (value, live) {
  * move
  * 
  * @param {number} value
- * @param {number} live
  * @return {void}
  */
-function move (value, live) {
+function move (value) {
 	// retrieve unsigned integer
 	var length = value|0
 	var index = length < 0 ? ~length+1 : length
@@ -136,23 +129,73 @@ function move (value, live) {
 	if (length > 0)
 		// visitor
 		while (index-- > 0)
-			this.step(0, live)
+			this.step(0)
 	// backward
 	else
 		// visitor
 		while (index-- > 0)
-			this.step(1, live)
+			this.step(1)
+}
+
+/**
+ * peak
+ *
+ * @desc retrieve character index at coordinates {x, y} 
+ * 
+ * @param {Object} value
+ * @return {number}
+ */
+function peak (value) {
+	var x = value.x|0
+	var y = value.y|0
+	var i = 0
+	var line = y/this.font
+	var block = this.block
+
+	// reduce line distance
+	while ((y = this.find(i, 10, -1)) < line);
+		i = y
+
+	// reduce column distance
+	while ((x -= this.context.measureText(this.fromCharCode(this.buff[i])).width) > 0)
+		i++
+
+	return i
+}
+
+/**
+ * find
+ *
+ * @desc regular expressions primitive
+ * 
+ * @param {number} index
+ * @param {number} value
+ * @param {number} length
+ */
+function find (index, value, length) {
+	var i = index|0
+	var x = length < 0 ? this.size : length|0
+
+	if (value|0 > -1)
+		while (i < this.size && x-- > 0)
+			switch (this.buff[i++]) {
+				case value|0:
+					return i
+			}
+	else
+		return ++i
+
+	return -1
 }
 
 /**
  * jump
  * 
  * @param {number} index
- * @param {number} live
  * @return {void}
  */
-function jump (index, live) {
-	this.move(index|0-this.pre, live)
+function jump (index) {
+	this.move(index|0-this.pre)
 }
 
 /**
@@ -173,8 +216,11 @@ function fill (code, length) {
 			// push
 			switch (this.buff[this.pre++] = code) {
 				case 10:
+					this.line++
 					this.lines++
+					this.column = 1
 				default:
+					this.column++
 					this.length++
 			}
 
@@ -183,8 +229,11 @@ function fill (code, length) {
 		case 1:
 			switch (code) {
 				case 10:
+					this.line--
 					this.lines--
+					this.column = 1
 				default:
+					this.column--
 					this.length--
 			}
 
@@ -213,28 +262,31 @@ function insert (string) {
  * remove
  * 
  * @param {number} value
- * @return {void}
+ * @return {number}
  */
 function remove (value) {
 	// retrieve unsigned integer
 	var length = value|0
 	var index = length < 0 ? ~length+1 : length
+	var code = 0
 
 	// visitor
 	while (index-- > 0)
 		// shift
 		if (value < 0)
 			if (this.pre > 0)
-				this.fill(this.buff[this.pre--], 1)
+				this.fill(code = this.buff[this.pre--], 1)
 			else
 				break
 		// pop
 		else
 			if (this.post > 0)
-				this.fill(this.buff[this.post--], 1)
+				this.fill(code = this.buff[this.post--], 1)
 			else
 				break
- }
+
+	return code
+}
 
 /**
  * expand
@@ -299,6 +351,203 @@ function toString (i, value) {
 }
 
 /**
+ * render
+ * 
+ * @return {void}
+ */
+function render () {
+	var context = this.context
+
+	if (context === null)
+		return
+
+	// canvas
+	context.canvas.width = this.width = window.innerWidth
+	context.canvas.height = this.height = window.innerHeight
+	context.font = this.font+'px '+this.family
+
+	// data
+	var buff = this.buff
+	var pre = this.pre
+	var post = this.post
+	var size = this.size
+	var length = this.length
+
+	// stats
+	var line = this.line
+	var lines = this.lines
+	var column = this.column
+
+	// units
+	var font = this.font
+	var block = this.block
+	var tab = this.tab
+
+	// bounds
+	var height = this.height+font
+	var width = this.width+block
+
+	// meta
+	var offset = 0
+	var code = 0
+	var index = 0
+	var head = 0
+	var tail = 0
+
+	// memory
+	var token = ''
+	var bytes = this.bytes
+	var bits = this.bits
+
+	// viewport
+	var j = this.y|0
+	var d = j%block
+	var x = this.x
+	var y = d > 0 ? j - d : j
+
+	var z = -1
+	var i = 0
+
+	// dimensions
+	var w = 0
+	var h = 0
+
+	// tokenize(naive)
+	// 
+	// super tokenize
+	// 
+	// i.e tokenize var
+	// 
+	// tokens {
+	// 	v: [v, a, r] // in character codes
+	// }
+	// 
+	// token = tokens[currentCode]
+	// 
+	// if (token !== undefined)
+	// 	index = 0
+	// 	
+	// 	outer: while (i < token.length-1)
+	// 		switch (value = (token[index++])
+	// 			case char++:
+	// 			default: break outer
+	// 
+	// if (char++ === operator)
+	// 	fill = tokens[char+1]
+	// else
+	// 	travel to next
+	// 	
+	// in this case
+	// and syntax highlighter can be added by supplying a 
+	// Uint8Array or maybe an object
+	// 
+	// with a map of `
+	// first chararacter code: [
+	// 	array of other character codes in keyword,
+	// 	last character is the color code
+	// ]`
+	// 
+	// then we can just iterate over all the matching characters
+	// untill we reach the end of the map-1 if if find a false positve
+	// bail out and move on to the next token(non-operator) index
+	// if there are no false positives then the last is the fill
+	// that the token should be filled with.
+	// 
+	// this will be both very fast and very extendable. 
+	// 
+	while (index < length && i < size && h < height)
+		switch (tail = code, code = buff[i === pre ? (i = size-post, i++) : i++]) {
+			// newline
+			case 10:
+				h += font
+				// viewport head
+				if (z < 0)
+					if (h >= y)
+						z = y, 
+						d = h,
+						h = font
+					else
+						head = index
+			// tabs
+			case 9:
+			// space
+			case 32:
+				// push previous token
+				if (token.length > 0)
+					// if (tail === code)
+						// token += this.fromCharCode(code)
+					// else
+						bytes[index++] = token
+
+				// push newline token
+				// if (tail !== code)
+					bytes[index++] = this.fromCharCode((token = '', code))
+				break
+			// unknown
+			default:
+				// switch (tail) {
+					// case 9:
+					// case 10:
+					// case 32:
+						// if (token.length > 0)
+							// bytes[index++] = token
+							// token = ''
+				// }
+
+				token += this.fromCharCode(code)
+		}
+
+	// push tail token
+	if (token.length > 0)
+		bytes[index++] = token
+
+	length = index
+	index = head
+	
+	w = 0
+	h = 0 - (j-d)
+
+	// draw
+	while (index < length) {
+		switch (token = bytes[index++]) {
+			case '\n':
+				h += font
+				w = 0
+				break
+			default:
+				// non-viewport
+				if (w > width)
+					break
+
+				context.fillText(token, w, h)
+				w += context.measureText(token).width
+		}
+	}		
+}
+
+function handleEvent (e) {
+	switch (e.type) {
+		case 'wheel': {	
+			// console.log(
+			// 	'offset', e.offsetX, e.offsetY, 
+			// 	'page', e.pageX, e.pageY, 
+			// 	'screen', e.screenX, e.screenY, 
+			// 	'wheelDelta', e.wheelDeltaX, e.wheelDeltaY, e.wheelDelta,
+			// 	'x,y', e.x, e.y, 
+			// 	'movement', e.movementX, e.movementY,
+			// 	'client', e.clientX, e.clientY,
+			// 	'layer', e.layerX, e.layerY
+			// )
+		}
+	}
+}
+
+function addEventListener () {
+	this.context.canvas.addEventListener('mousewheel', this, {passive: true})
+}
+
+
+/**
  * select
  *
  * @param {number} x1
@@ -322,200 +571,81 @@ function select (x1, y1, x2, y2) {
  * @return {string}
  */
 function copy () {
-	// get selection maps, visit every selection and copy characters
-	// in a buffer, then return string version i.e like save .join('')
+	var select = this.select
+
+	// @todo copy line
+	if (select.length === 0)
+		return ''
 }
 
 /**
- * setup
- *
- * @param {Node} canvas
- * @param {CanvasRenderingContext2D} context
- */
-function setup (canvas, context) {	
-	canvas.width = this.width
-	canvas.height = this.height
-	canvas.style.cursor = 'text'
-	context.font = this.font+'px '+this.family
-}
-
-function seek (h, v) {
-	var x = h|0
-	var y = v|0
-	var i = this.i
-
-	if (y > this.font)
-		// go to line
-		while ((y -= this.font) > 0) 
-			i = this.find(i, 10)
-
-	if (x > 0)
-		while ((x -= this.context.measureText(String.fromCharCode(this.buff[i])).width) > 0)
-			i++
-
-	var line = this.line
-
-	console.log(this.pre, this.post, this.line)
-	
-	this.jump(0, 0)
-	this.jump(i, 1)
-
-	// heap.move(-(heap.pre+heap.post), )
-	console.log(this.pre, this.post, this.line)
-
-	console.log(String.fromCharCode(this.buff[i]))
-}
-
-/**
- * find
- *
- * @param {number} index
- * @param {number} value
- */
-function find (index, value) {
-	var i = index|0
-
-	while (i < this.size)
-		if (value|0 >= 0)
-			switch (this.buff[i++]) {
-				case value|0:
-					return i
-			}
-		else
-			switch (this.buff[i++]) {
-				case ~value+1:
-					return i
-			}
-
-	return i
-}
-
-/**
- * render
+ * cut
  * 
- * @param {number} xAxis
- * @param {number} yAxix
- * @return {void}
- *
- * @todo only render the parts that are visible
- *
- * 1. we could get to the visible area by calculating the delta
- *    coming from opposite ends(line by line) till we reach the middle –> x <–
- *    such that x <= visible viewport height at this paint we just paint the remaing lines
- *
- *    possible optimization could be added to start from the closest anchors from both sides
- *    if possible.
- *
- *    this assumes handling scrolling as well.
- *
- * 2. for the most part the same as 1. but instead of just grow the canvas as needed
- *    let the native runtime handle scroll, and only update the parts of visible viewport like 1.
- *
- * 3. potentially the fastest render method for small insert/delete ops be a 1-1 binding, 
- *     insert->draw insertion
- *     delete->create insertion
- *    but that involes alot of bookkeeping to do syntax highlighting in canvas
- *
- * 4. [current choice] do #1 except we already know the which character are visible in the viewport
- * 		so we render all of them +1 extra line on the top and one the bottom to buffer the scrolling intersaction 
- *
- * @todo
- *   draw from right->left, bottom->top
- *   allows for some optimizations in syntax highlighting and general rendering
- *
- * I think option 1. is the best modal for the most control and constant time rendering
- * proportortional to the dimensions of the visible viewport regardless of the size
- * of the file.
- *
- * The cursor will be draw at the gap
- * the cursor will render in a separate step
- * but we will update the position to draw the cursor
- * when after we render the world if the position is within the viewport
- * and the cursor will only render when it the gap is part of the viewport
+ * @return {string}
  */
-function render () {
-	var context = this.context
+function cut () {
+	var select = this.select
 
-	if (context === null)
-		return
-
-	this.setup(context.canvas, context)
-
-	var buff = this.buff
-	var pre = this.pre
-	var post = this.post
-	var size = this.size
-	var length = this.length
-
-	var line = this.line
-	var lines = this.lines
-	var column = this.column
-
-	var font = this.font
-	var block = this.block
-	var tab = this.tab
-
-	var height = this.height+font
-	var width = this.width+block
-
-	var i = this.i
-	var h = font
-	var w = 0
-	var j = 0
-
-	var offset = 1
-	var code = 0
-	var index = 0
-
-	var token = ''
-	var bytes = new Array((height/font|0)<<1)
-
-	while (index < length && h < height && i < size)
-		switch (code = buff[i === pre ? (i = size-post, i++) : i++]) {
-			case 10:
-				h += font
-			case 32:
-				if (token.length > 0)
-					bytes[j++] = token
-
-				bytes[j++] = String.fromCharCode(code)
-				token = ''
-				break
-			default:
-				token += String.fromCharCode(code)
-		}
-
-	length = j
-	h = font
-	i = 0
-
-	while (i < length) {
-		switch (token = bytes[i++]) {
-			case '\n':
-				h += font
-				w = 0
-				break
-			default: 
-				if (w > width)
-					break
-
-				context.fillText(token, w, h)
-				w += context.measureText(token).width
-		}
-	}		
+	// @todo cut line
+	if (select.length === 0)
+		return ''
 }
 
-var stop = false;
-var begin = 0;
-var start = 0;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 (function demo(){
 	var input = ''
 	var i = 0
-	var template = `This is a stress test where every single line is being rendered with as much text, see console\n`
+	var begin = 0;
+	var template = `
+/**
+ * step
+ * 
+ * @param {number} value
+ * @return {void}
+ */
+function step (value) {
+	switch (value|0) {
+		// forward
+		case 0:
+			if (this.post > 0)
+				switch (this.buff[this.pre++] = this.buff[this.size-this.post--]) {
+					case 10:
+						this.line++
+				}
+			break
+		// backward
+		case 1:
+			if (this.pre > 0)
+				switch (this.buff[this.size-(this.post++)-1] = this.buff[(this.pre--)-1]) {
+					case 10:
+						this.line--
+				}
+	}
+}
+`
 
-	while (i++<3000) {
-		input += template;
+	while (i++<2000) {
+		input += template.trim()+'\n\n';
 	}
 
 	function body () {
@@ -525,9 +655,9 @@ var start = 0;
 		console.log('insert:', performance.now()-begin, 'ms')
 
 		// // move ~15ms
-		// begin = performance.now()
-		// heap.move(-(heap.pre+heap.post), )
-		// console.log('move*:', performance.now()-begin, 'ms')
+		begin = performance.now()
+		heap.move(-(heap.pre+heap.post))
+		console.log('move*:', performance.now()-begin, 'ms')
 
 		// // render ~10ms
 		begin = performance.now()
@@ -539,27 +669,21 @@ var start = 0;
 		heap.toString()
 		console.log('save:', performance.now()-begin, 'ms')
 		
-		console.log('insert + move + render + save:', performance.now()-start, 'ms')
 		console.log('')
-		console.log('*move = moving from the very bottom to the top,')
-		console.log(`stats:${heap.length} chars, ${heap.lines} lines`)
+		console.log(`stats: ${heap.length} chars, ${heap.lines} lines`)
 	}
 
-	var heap = new Buffer(input.length, window.innerWidth, window.innerHeight)
+	var heap = new Buffer(input.length, 0, (13*2)+2)
 	heap.context = context
-	begin = start = performance.now()
 
+	begin = performance.now()
 	body()
 
-	// requestAnimationFrame(function loop () {
-		// heap.scroll(20)
-		// heap.insert(input)
-		
-	canvas.addEventListener('mousedown', function (e) {
-		heap.seek(e.x, e.y)
-		heap.render()
-	})
-
+	setTimeout(function loop () {
+		// heap.y+=2
+		// heap.render()
 		// setTimeout(loop, 1000)
-	// })
+	}, 500)
+
+	heap.addEventListener('wheel')
 })()
