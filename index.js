@@ -42,11 +42,8 @@ function Buffer (size, x, y) {
 	this.x = x|0
 	this.y = y|0
 
-	// selection
-	this.select = []
-
-	// history
-	this.history = []
+	// fill
+	this.fill = new Array(size)
 
 	// context
 	this.context = null
@@ -59,7 +56,7 @@ Buffer.prototype = {
 	jump: jump,
 	insert: insert,
 	remove: remove,
-	fill: fill,
+	push: push,
 	expand: expand,
 	select: select,
 	copy: copy,
@@ -75,6 +72,7 @@ Buffer.prototype = {
 	// memory
 	bytes: new Array(1000),
 	bits: new Uint8Array(1000),
+	data: new Uint8Array(1000),
 
 	// paint
 	render: render,
@@ -199,13 +197,13 @@ function jump (index) {
 }
 
 /**
- * fill
+ * push
  * 
  * @param {number} code
  * @param {number} length
  * @return {void}
  */
-function fill (code, length) {
+function push (code, length) {
 	switch (length|0) {
 		// insert
 		case 0: 
@@ -252,10 +250,10 @@ function insert (string) {
 	if (string.length > 0)
 		// fill in each character
 		for (var i = 0; i < string.length; i++)
-			this.fill(string.charCodeAt(i), 0)
+			this.push(string.charCodeAt(i), 0)
 	// single character
 	else
-		this.fill(string.charCodeAt(0), 0)
+		this.push(string.charCodeAt(0), 0)
 }
 
 /**
@@ -275,13 +273,13 @@ function remove (value) {
 		// shift
 		if (value < 0)
 			if (this.pre > 0)
-				this.fill(code = this.buff[this.pre--], 1)
+				this.push(code = this.buff[this.pre--], 1)
 			else
 				break
 		// pop
 		else
 			if (this.post > 0)
-				this.fill(code = this.buff[this.post--], 1)
+				this.push(code = this.buff[this.post--], 1)
 			else
 				break
 
@@ -601,11 +599,231 @@ function cut () {
 
 
 
+var example = []
+
+// v, a, r
+// example[118] = []
+// example[118][97] = []
+// example[118][97][114] = []
+
+function hash () {
+  var hash = 0
+  var i = 0 
+  var code = 0
 
 
+  hash = ((hash << 5) - hash) + code;
+  return hash |= 0; // convert to 32bit integer
+}
 
+/**
+ * tokenize
+ *
+ * @desc 
+ * 		given a start index and length
+ *   	create tokenized set of the data
+ * 
+ * ?
+ * 
+ * a - token
+ * b - after operator: (, ), <, >, [, }, 
+ * c - after string character ?
+ *
+ * optimization, only tokenize the delta
+ * 
+ * @param {number} idx
+ * @param {number} len
+ * @return {number}
+ */
+function tokenize (idx, len) {
+	if (this.size > this.data.length)
+		this.data = new Int8Array(size)
 
+	var data = this.data
 
+	var pre = this.pre
+	var post = this.post
+	var size = this.size
+
+	var code = 0
+	var i = idx|0
+	var length = len|0
+
+	while (length-- > 0) {
+		code = data[i++]
+
+		if (i === pre)
+			i = post+1
+	}
+}
+
+/**
+ * notes for a fast tokenizer system
+ *
+ * 1. start position === dirty slot (slot where the old tokenized data has become obsolete)
+ * 2. end position === clean slot (slot where old tokenized data is still valid)
+ * 3. we then only ever tokenize the delta between 1 & 2
+ * 
+ * fill is a 1-1 set instructions of how to style the characters
+ * when it is invalidated a tokenizations sweep is run to update the delta
+ *
+ * chars [v, a, r, , =, a]
+ * codes [118, 97, 114, 32, 61, 32, 91]
+ * style [100, 0, 0, 0, 0, 20, 0, 0, 10]
+ *
+ * psuedo
+ *  draw `var ` - #100
+ *  draw `=` #20
+ *  draw `a` #10
+ *
+ * ------------------------------------
+ * 
+ * or maybe have a simple approach
+ *
+ * and let the different tokenizes implement their
+ * own logic based on these primitives
+ *
+ * where tokenz are either
+ *
+ * 1. operatores: [^A-z0-9]
+ * 2. words/letters: key frame new
+ * 3. numbers 0-9
+ * 
+ * (previousToken, currentToken, nextToken, tokenIndex): this = tokens[]
+ *
+ * for example
+ *
+ * foo.key
+ * 
+ * (NULL, 'foo', '.', 0)
+ * ('foo', '.', 'key', 1)
+ * ('.', 'key', NULL, 2)
+ *
+ * //
+ *
+ * (NULL, '/', '/')
+ * ('/', '/', NULL)
+ *
+ * the tokenIndex allows you to look behind/head further at future/previous tokens
+ * incase more context is required.
+ *
+ * the return value of the tokenizer would be the type of the current token
+ * 
+ */
+
+/**
+ *
+ * general
+ *
+ * @desc
+ * 		given a Int8Array with all the characters to render and meta data about how to render them, 
+ * 		this function will paint the corrosponding image on a canvas of your choosing, fast
+ *
+ * @meta
+ * 		fill code 	      
+ * 			-1, -201
+ * 		
+ * 		meta info: 
+ * 			-202, -254
+ * 			
+ * 			-202: draw stroke rect
+ * 			-203: draw filled rect
+ * 			-204: draw under line
+ *    	-205: draw stroke
+ * 
+ * @param {number} idx
+ * @param {number} len
+ * @param {number} w
+ * @param {number} h
+ * @param {number} lineHeight
+ * @param {number} xAxis
+ * @param {number} yAxisg
+ */
+function general (idx, len, w, h, lineHeight, xAxis, yAxis) {
+	var context = this.context
+	var data = this.data
+	var fill = this.fill
+
+	var rgb = ''
+	var set = ''
+
+	var code = 0
+	var i = idx|0
+	var length = len|0
+
+	var width = w|0
+	var height = h|0
+	var line = lineHeight|0
+	var x = xAxis|0
+	var y = yaxis|0
+
+	while (y < height && i < length) {
+		code = data[i++]
+
+		// meta
+		if (code < -0)
+			// fill
+			if (code > -202)
+				context.fillStyle = (rgb = fill[~code+1], code = data[++i], rgb)
+			// stroke/background/other
+			if (code < 202 && code > -255)
+				switch (code) {
+					// stroke rect
+					case -202:
+					// fill rect
+					case -203:
+					// under line
+					case -204:
+					// stroke line 
+					case -205:
+				}
+
+		switch (code) {
+			// paint
+			case -255:
+				// boundary
+				if (x < width)
+					context.fillText(set, x, y),
+					x += context.measureText(set).width|0
+				set = ''
+				break
+			// newline
+			case 10:
+				y += line
+				break
+			// palette
+			default:
+				set += String.fromCharCode(code)
+		}
+	}
+}
+
+function tokenizeString (startIndex, dataSize, charCode, escadeCode, supportNewLine) {
+	var data = this.data
+
+	var i = startIndex|0
+	var type = charCode|0
+	var escape = escadeCode|0
+	var exclude = supportNewLine|0
+	var length = dataSize|0
+
+	var code = 0
+	var tail = 0
+
+	while (i < length) {
+		switch (tail = code, code = data[i++]) {
+			case exclude:
+				length = i
+				break
+			case type:
+				if (tail !== escape)
+					length = i
+				break
+		}
+	}
+
+	return i
+}
 
 
 
