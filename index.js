@@ -43,7 +43,7 @@ function Buffer (size, x, y) {
 	this.y = y|0
 
 	// fill
-	this.fill = new Array(size)
+	this.token = new Array(300000)
 
 	// context
 	this.context = null
@@ -348,6 +348,10 @@ function toString (i, value) {
 	return output
 }
 
+function tokenize (previous, current, next, index, state) {
+	return 1
+}
+
 /**
  * render
  * 
@@ -410,49 +414,84 @@ function render () {
 	var w = 0
 	var h = 0
 
-	// tokenize(naive)
-	// 
-	// super tokenize
-	// 
-	// i.e tokenize var
-	// 
-	// tokens {
-	// 	v: [v, a, r] // in character codes
-	// }
-	// 
-	// token = tokens[currentCode]
-	// 
-	// if (token !== undefined)
-	// 	index = 0
-	// 	
-	// 	outer: while (i < token.length-1)
-	// 		switch (value = (token[index++])
-	// 			case char++:
-	// 			default: break outer
-	// 
-	// if (char++ === operator)
-	// 	fill = tokens[char+1]
-	// else
-	// 	travel to next
-	// 	
-	// in this case
-	// and syntax highlighter can be added by supplying a 
-	// Uint8Array or maybe an object
-	// 
-	// with a map of `
-	// first chararacter code: [
-	// 	array of other character codes in keyword,
-	// 	last character is the color code
-	// ]`
-	// 
-	// then we can just iterate over all the matching characters
-	// untill we reach the end of the map-1 if if find a false positve
-	// bail out and move on to the next token(non-operator) index
-	// if there are no false positives then the last is the fill
-	// that the token should be filled with.
-	// 
-	// this will be both very fast and very extendable. 
-	// 
+	var token = this.token
+	var chars = ''
+
+	var start = performance.now()
+
+	while (index < length && i < size && h < height) {
+		if (i === pre)
+			i = size-post
+
+		code = buff[i++]
+			
+		if ((code < 91 && code > 64) || (code < 123 && code > 96))
+			chars += this.fromCharCode(code)
+		else 
+			code === 10 ? h +=font : 0,	
+			chars.length > 0 ? (token[index++] = chars, chars = '') : 0,
+			token[index++] = this.fromCharCode(code)
+	}
+
+	var end = performance.now()
+	console.log((end-start), length, token)
+
+	i = 0
+
+	var start = performance.now()
+	while (i < index) {
+		tokenize(i > 0 ? token[i-1] : '' , token[i], ++i < index ? token[i] : '', index, buff)
+	}
+
+	var end = performance.now()
+	console.log((end-start), length, token.length)
+
+	throw 'end'
+
+	/* 
+		tokenize(naive)
+		
+		super tokenize
+		
+		i.e tokenize var
+		
+		tokens {
+			v: [v, a, r] // in character codes
+		}
+		
+		token = tokens[currentCode]
+		
+		if (token !== undefined)
+			index = 0
+			
+			outer: while (i < token.length-1)
+				switch (value = (token[index++])
+					case char++:
+					default: break outer
+		
+		if (char++ === operator)
+			fill = tokens[char+1]
+		else
+			travel to next
+			
+		in this case
+		and syntax highlighter can be added by supplying a 
+		Uint8Array or maybe an object
+		
+		with a map of `
+		first chararacter code: [
+			array of other character codes in keyword,
+			last character is the color code
+		]`
+		
+		then we can just iterate over all the matching characters
+		untill we reach the end of the map-1 if if find a false positve
+		bail out and move on to the next token(non-operator) index
+		if there are no false positives then the last is the fill
+		that the token should be filled with.
+		
+		this will be both very fast and very extendable. 
+	*/
 	while (index < length && i < size && h < height)
 		switch (code = buff[i === pre ? (i = size-post, i++) : i++]) {
 			// newline
@@ -635,7 +674,7 @@ function hash () {
  * @param {number} len
  * @return {number}
  */
-function tokenize (idx, len) {
+function tokenizerrr (idx, len) {
 	if (this.size > this.data.length)
 		this.data = new Int8Array(size)
 
@@ -762,6 +801,23 @@ function tokenize (idx, len) {
  * i.e -1
  *
  * using primitive data types like numbers makes this all very good for performance and memory
+ *
+ * there should also be a way to say merge the current token with the last token
+ *
+ * i.e word_something
+ *
+ * `word` `_` `something`
+ *
+ * when `_` is passed
+ *
+ * it say to merge it with the previous and or next token type
+ *
+ * this will make it `word_something`
+ *
+ * or `word_` depending on what the tokenizer wants
+ *
+ * this allow a generic primitive to support syntax tokenizers for non ALGOL languages that support
+ * dash case i.e `word-something` tokens
  */
 
 /**
@@ -922,7 +978,8 @@ function step (value) {
 	}
 }
 `
-
+	
+	// 40,000 lines
 	while (i++<2000) {
 		input += template.trim()+'\n\n';
 	}
