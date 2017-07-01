@@ -689,7 +689,13 @@ function tokenize (idx, len) {
  * 2. words/letters: key frame new
  * 3. numbers 0-9
  * 
- * (previousToken, currentToken, nextToken, tokenIndex): this = tokens[]
+ * (
+ * 		previousToken<string>, 
+ * 		currentToken<string>, 
+ * 		nextToken<string>, 
+ * 		tokenIndex<number>, 
+ * 		Uint8Array<255>
+ * ): this = tokens[]
  *
  * for example
  *
@@ -707,8 +713,55 @@ function tokenize (idx, len) {
  * the tokenIndex allows you to look behind/head further at future/previous tokens
  * incase more context is required.
  *
+ * The Uint8Array<255> can be used to store state between tokens
+ *
+ * i.e
+ *
+ * `Hello ${a}`
+ *
+ * (NULL, '`', 'H')
+ *
+ * ` char code is 96 so we can do the following when the 
+ * first instance of ` appears
+ *
+ * Uint8Array[96] = 1
+ *
+ * then remove it with the second instance
+ *
+ * Uint8Array[96] = 0
+ *
+ * This allows us to tokenize tokens in strings/string literals
+ *
+ *
  * the return value of the tokenizer would be the type of the current token
+ * this type will be an address between 0-50 increments that represents the tokens type
+ *
+ * this means that
  * 
+ * 1-50 is equal to
+ * 51-100 
+ * 101-150 as is
+ * 151-200 and
+ * 201-250
+ *
+ * This allows us store meta an extra piece of meta data into one return value
+ * by returning a value from a specific group that carries the same meaning
+ *
+ * i.e say 1 represents variables token
+ * 
+ * 51 would also represent variables tokens but also displayed with a strike over them
+ * 101 would also represent variables but also displayed with an underline below them
+ * 151 would also represent variables but also displayed with a stroked rect drawn around it
+ * 201 would also represent varialbes but also displayed with a filled rect drawn behind it
+ *
+ * 0, 251-255 might represent special meta data
+ *
+ * we could also add a sign into the mix to represent 3 pieces of meta data
+ * with the one value
+ *
+ * i.e -1
+ *
+ * using primitive data types like numbers makes this all very good for performance and memory
  */
 
 /**
