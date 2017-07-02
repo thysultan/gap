@@ -551,6 +551,55 @@ function render () {
 
 	console.log((end-start), 'is the time it takes to tokenize + render ' +  this.lines+' lines')
 }
+
+/**
+ * 01 - comment(block)
+ * 02 - comment(line) 
+ *
+ * 03 - invalid(illegal)
+ * 04 - invalid(deprecated)
+ *
+ * 05 - string(quoted single)
+ * 06 - string(quoted double)
+ * 07 - string(quoted triple)
+ * 08 - string(quoted other)
+ * 09 - string(interpolated)
+ * 10 - string(regex)
+ * 11 - string(other)
+ *
+ * 12 - constant(numeric)
+ * 13 - constant(escape)
+ * 14 - constant(language)
+ * 15 - constant(other)
+ *
+ * 16 - variable(parameter)
+ * 17 - variable(special) i.e this, super
+ * 18 - variable(other)
+ *
+ * 19 - storage(type)
+ * 20 - storage(modifier)
+ * 
+ * 21 - support(function)
+ * 22 - support(class)
+ * 23 - support(type)
+ * 24 - support(constant) i.e magic value
+ * 25 - support(variable)  i.e (String)
+ * 26 - support(other)
+ * 
+ * 27 - keyword(control) i.e while, return
+ * 28 - keyword(operator)
+ * 29 - keyword(other)
+ *
+ * 30 - unknown
+ *
+ * 031 - 060 underline
+ * 061 - 090 strike
+ * 091 - 120 selected
+ * 121 - 150 highlighted(light)
+ * 121 - 150 highlighted(strong)
+ * 151 - folded 
+ */
+
 /**
  * notes for a fast tokenizer system
  *
