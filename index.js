@@ -593,11 +593,7 @@ function render () {
  * 30 - unknown
  *
  * 031 - 060 underline
- * 061 - 090 strike
- * 091 - 120 selected
- * 121 - 150 highlighted(light)
- * 121 - 150 highlighted(strong)
- * 151 - folded 
+ * 161 - 190 folded 
  */
 
 /**
