@@ -37,12 +37,12 @@ function Buffer (size, x, y, width, height) {
 	this.length = 0
 
 	// dimension
-	this.width = width
-	this.height = height
+	this.width = width|0
+	this.height = height|0
 
 	// viewport
-	this.x = x
-	this.y = y
+	this.x = x|0
+	this.y = y|0
 
 	// state
 	this.state = {
@@ -459,14 +459,14 @@ function render () {
 	var column = this.column
 
 	// viewport
-	var height = this.height
-	var width = this.width
+	var height = this.height|0
+	var width = this.width|0
 
 	// scroll
 	var i = 0
 	var k = 0
-	var x = this.x
-	var y = this.y
+	var x = this.x|0
+	var y = this.y|0
 	var z = 0
 
 	// dimensions
@@ -498,7 +498,7 @@ function render () {
 
 			if (code === 10) {
 				if (k === 0) {
-					z = h >= y ? (h = 0, k = 1, z = z > 0 ? ++z : z) : index
+					z = h >= y ? (h = 0, k = 1, z = z > 0 ? z + 1 : z) : index
 				}
 				h += lineHeight
 			}
