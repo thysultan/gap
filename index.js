@@ -18,19 +18,17 @@ var canvasWidth = canvas.width = viewport.offsetWidth
  * @param {number} size
  * @param {number} x
  * @param {number} y
+ * @param {number} width
+ * @param {number} height
  */
-function Buffer (size, x, y) {
+function Buffer (size, x, y, width, height) {
 	// cursor
 	this.pre = 0
 	this.post = 0
 
 	// buffer
-	this.size = (size|0)+100
+	this.size = (size|0)+10
 	this.buff = new Uint8Array(this.size)
-
-	// dimension
-	this.width = 0
-	this.height = 0
 
 	// meta
 	this.line = 1
@@ -38,12 +36,19 @@ function Buffer (size, x, y) {
 	this.column = 1
 	this.length = 0
 
-	// viewport
-	this.x = x|0
-	this.y = y|0
+	// dimension
+	this.width = width
+	this.height = height
 
-	// fill
-	this.token = new Array(300000)
+	// viewport
+	this.x = x
+	this.y = y
+
+	// state
+	this.state = {
+		bytes: new Uint8Array(256),
+		token: new Array(256)
+	}
 
 	// context
 	this.context = null
@@ -64,15 +69,12 @@ Buffer.prototype = {
 	peek: peek,
 
 	// static
-	block: Math.round(13/1.666),
-	font: 13,
-	tab: 2,
-	family: 'monospace',
-
-	// memory
-	bytes: new Array(1000),
-	bits: new Uint8Array(1000),
-	data: new Uint8Array(1000),
+	ratio: -1,
+	fontWidth: Math.round(13/1.666),
+	fontSize: 13,
+	lineHeight: 13*1.5,
+	tabSize: 2,
+	fontFamily: 'monospace',
 
 	// paint
 	render: render,
@@ -147,11 +149,10 @@ function peek (value) {
 	var x = value.x|0
 	var y = value.y|0
 	var i = 0
-	var line = y/this.font
-	var block = this.block
+	var lineHeight = y/this.lineHeight
 
 	// reduce line distance
-	while ((y = this.find(i, 10, -1)) < line);
+	while ((y = this.find(i, 10, -1)) < lineHeight);
 		i = y
 
 	// reduce column distance
@@ -249,8 +250,9 @@ function insert (string) {
 	// more than one character
 	if (string.length > 0)
 		// fill in each character
-		for (var i = 0; i < string.length; i++)
+		for (var i = 0, j = 0, l = string.length; i < l; i++)
 			this.push(string.charCodeAt(i), 0)
+
 	// single character
 	else
 		this.push(string.charCodeAt(0), 0)
@@ -348,228 +350,6 @@ function toString (i, value) {
 	return output
 }
 
-function tokenize (previous, current, next, index, state) {
-	return 1
-}
-
-/**
- * render
- * 
- * @return {void}
- */
-function render () {
-	var context = this.context
-
-	if (context === null)
-		return
-
-	// canvas
-	context.canvas.width = this.width = window.innerWidth
-	context.canvas.height = this.height = window.innerHeight
-	context.font = this.font+'px '+this.family
-
-	// data
-	var buff = this.buff
-	var pre = this.pre
-	var post = this.post
-	var size = this.size
-	var length = this.length
-
-	// stats
-	var line = this.line
-	var lines = this.lines
-	var column = this.column
-
-	// units
-	var font = this.font
-	var block = this.block
-	var tab = this.tab
-
-	// bounds
-	var height = this.height+font
-	var width = this.width+block
-
-	// meta
-	var offset = 0
-	var code = 0
-	var index = 0
-	var head = 0
-	var tail = -1
-
-	// memory
-	var token = ''
-	var bytes = this.bytes
-	var bits = this.bits
-
-	// viewport
-	var j = this.y|0
-	var d = j%block
-	var x = this.x
-	var y = d > 0 ? j - d : j
-
-	var z = -1
-	var i = 0
-
-	// dimensions
-	var w = 0
-	var h = 0
-
-	var token = this.token
-	var chars = ''
-
-	var start = performance.now()
-
-	while (index < length && i < size && h < height) {
-		if (i === pre)
-			i = size-post
-
-		code = buff[i++]
-			
-		if ((code < 91 && code > 64) || (code < 123 && code > 96))
-			chars += this.fromCharCode(code)
-		else 
-			code === 10 ? h +=font : 0,	
-			chars.length > 0 ? (token[index++] = chars, chars = '') : 0,
-			token[index++] = this.fromCharCode(code)
-	}
-
-	var end = performance.now()
-	console.log((end-start), length, token)
-
-	i = 0
-
-	var start = performance.now()
-	while (i < index) {
-		tokenize(i > 0 ? token[i-1] : '' , token[i], ++i < index ? token[i] : '', index, buff)
-	}
-
-	var end = performance.now()
-	console.log((end-start), length, token.length)
-
-	throw 'end'
-
-	/* 
-		tokenize(naive)
-		
-		super tokenize
-		
-		i.e tokenize var
-		
-		tokens {
-			v: [v, a, r] // in character codes
-		}
-		
-		token = tokens[currentCode]
-		
-		if (token !== undefined)
-			index = 0
-			
-			outer: while (i < token.length-1)
-				switch (value = (token[index++])
-					case char++:
-					default: break outer
-		
-		if (char++ === operator)
-			fill = tokens[char+1]
-		else
-			travel to next
-			
-		in this case
-		and syntax highlighter can be added by supplying a 
-		Uint8Array or maybe an object
-		
-		with a map of `
-		first chararacter code: [
-			array of other character codes in keyword,
-			last character is the color code
-		]`
-		
-		then we can just iterate over all the matching characters
-		untill we reach the end of the map-1 if if find a false positve
-		bail out and move on to the next token(non-operator) index
-		if there are no false positives then the last is the fill
-		that the token should be filled with.
-		
-		this will be both very fast and very extendable. 
-	*/
-	while (index < length && i < size && h < height)
-		switch (code = buff[i === pre ? (i = size-post, i++) : i++]) {
-			// newline
-			case 10:
-				h += font
-				// viewport head
-				if (z < 0)
-					if (h >= y)
-						z = y, 
-						d = h,
-						h = font
-					else
-						tail = head+1,
-						head = index+1
-			// tabs
-			case 9:
-			// space
-			case 32:
-				// push previous token
-				if (token.length > 0)
-					// if (tail === code)
-						// token += this.fromCharCode(code)
-					// else
-						bytes[index++] = token
-
-				// push newline token
-				// if (tail !== code)
-					bytes[index++] = this.fromCharCode((token = '', code))
-				break
-			// unknown
-			default:
-				// switch (tail) {
-					// case 9:
-					// case 10:
-					// case 32:
-						// if (token.length > 0)
-							// bytes[index++] = token
-							// token = ''
-				// }
-
-				token += this.fromCharCode(code)
-		}
-
-	// push tail token
-	if (token.length > 0)
-		bytes[index++] = token
-
-	length = index
-	index = head
-	h = 0 - (j-d)
-	
-	// draw
-	while (tail < head)
-		// non-viewport
-		if (w > width)
-			break
-		else
-			context.fillText(token = bytes[tail++], w, h),
-			w += context.measureText(token).width
-
-	w = 0
-
-	while (index < length)
-		switch (token = bytes[index++]) {
-			case '\n':
-				h += font
-				w = 0
-				break
-			default:
-				// non-viewport
-				if (w > width)
-					break
-
-				context.fillText(token, w, h)
-				w += context.measureText(token).width
-		}
-}
-
 function handleEvent (e) {
 	switch (e.type) {
 		case 'wheel': {	
@@ -588,9 +368,9 @@ function handleEvent (e) {
 }
 
 function addEventListener () {
-	this.context.canvas.addEventListener('mousewheel', this, {passive: true})
+	if (this.context !== null)
+		this.context.canvas.addEventListener('mousewheel', this, {passive: true})
 }
-
 
 /**
  * select
@@ -636,15 +416,6 @@ function cut () {
 		return ''
 }
 
-
-
-var example = []
-
-// v, a, r
-// example[118] = []
-// example[118][97] = []
-// example[118][97][114] = []
-
 function hash () {
   var hash = 0
   var i = 0 
@@ -655,47 +426,131 @@ function hash () {
   return hash |= 0; // convert to 32bit integer
 }
 
+function tokenize (previous, current, next, index, state) {
+	return 1
+}
+
 /**
- * tokenize
- *
- * @desc 
- * 		given a start index and length
- *   	create tokenized set of the data
+ * render
  * 
- * ?
- * 
- * a - token
- * b - after operator: (, ), <, >, [, }, 
- * c - after string character ?
- *
- * optimization, only tokenize the delta
- * 
- * @param {number} idx
- * @param {number} len
- * @return {number}
+ * @return {void}
  */
-function tokenizerrr (idx, len) {
-	if (this.size > this.data.length)
-		this.data = new Int8Array(size)
+function render () {
+	var context = this.context
 
-	var data = this.data
+	if (context === null)
+		return
 
+	// units
+	var lineHeight = this.lineHeight
+	var fontWidth = this.fontWidth
+	var tabSize = this.tabSize
+
+	// data
+	var buff = this.buff
 	var pre = this.pre
 	var post = this.post
 	var size = this.size
+	var length = this.length
 
+	// stats
+	var line = this.line
+	var lines = this.lines
+	var column = this.column
+
+	// viewport
+	var height = this.height
+	var width = this.width
+
+	// scroll
+	var i = 0
+	var k = 0
+	var x = this.x
+	var y = this.y
+	var z = 0
+
+	// dimensions
+	var w = 0
+	var h = 0
+
+	// meta
+	var offset = 0
 	var code = 0
-	var i = idx|0
-	var length = len|0
+	var index = 0
 
-	while (length-- > 0) {
-		code = data[i++]
+	// memory
+	var state = this.state
+	var token = state.token
+	var chars = ''
 
-		if (i === pre)
-			i = post+1
+	var start = performance.now()
+
+	while (index < length && i < size && h <= height) {
+		code = buff[i++]
+			
+		if ((code < 91 && code > 64) || (code < 123 && code > 96)) {
+			chars += this.fromCharCode(code)
+		} else {
+			if (chars.length > 0) {
+				token[index++] = chars
+				chars = ''
+			}
+
+			if (code === 10) {
+				if (k === 0) {
+					z = h >= y ? (h = 0, k = 1, z = z > 0 ? ++z : z) : index
+				}
+				h += lineHeight
+			}
+
+			token[index++] = this.fromCharCode(code)
+		}
+
+		if (i === pre) {
+			i = size-post
+		}
 	}
-}
 
+	// canvas
+	context.canvas.width = width
+	context.canvas.height = height
+	context.font = this.fontSize+'px '+this.fontFamily
+	context.textBaseline = 'top'
+
+	length = index
+	i = z
+	h = 0
+	w = 0
+
+	while (i < length) {
+		switch (chars = token[i++]) {
+			case ' ':
+			case '\t':
+				w += fontWidth
+				break
+			case '\n':
+				h += lineHeight
+				w = 0
+				break
+			default:
+				// non-viewport
+				if (w > width)
+					break
+
+				switch (tokenize.call(state, index)) {
+					case 0:
+						break
+				}
+
+				context.fillText(chars, w, h)
+				w += context.measureText(chars).width|0
+		}
+	}
+
+	var end = performance.now()
+
+	console.log((end-start), 'is the time it takes to tokenize + render ' +  this.lines+' lines')
+}
 /**
  * notes for a fast tokenizer system
  *
@@ -798,6 +653,9 @@ function tokenizerrr (idx, len) {
  * we could also add a sign into the mix to represent 3 pieces of meta data
  * with the one value
  *
+ * i.e -201 could represent varialbes but also displayed with a filled rect drawn behind it 
+ * to represent a syntax error
+ *
  * i.e -1
  *
  * using primitive data types like numbers makes this all very good for performance and memory
@@ -819,136 +677,7 @@ function tokenizerrr (idx, len) {
  * this allow a generic primitive to support syntax tokenizers for non ALGOL languages that support
  * dash case i.e `word-something` tokens
  */
-
-/**
- *
- * general
- *
- * @desc
- * 		given a Int8Array with all the characters to render and meta data about how to render them, 
- * 		this function will paint the corrosponding image on a canvas of your choosing, fast
- *
- * @meta
- * 		fill code 	      
- * 			-1, -201
- * 		
- * 		meta info: 
- * 			-202, -254
- * 			
- * 			-202: draw stroke rect
- * 			-203: draw filled rect
- * 			-204: draw under line
- *    	-205: draw stroke
- * 
- * @param {number} idx
- * @param {number} len
- * @param {number} w
- * @param {number} h
- * @param {number} lineHeight
- * @param {number} xAxis
- * @param {number} yAxisg
- */
-function general (idx, len, w, h, lineHeight, xAxis, yAxis) {
-	var context = this.context
-	var data = this.data
-	var fill = this.fill
-
-	var rgb = ''
-	var set = ''
-
-	var code = 0
-	var i = idx|0
-	var length = len|0
-
-	var width = w|0
-	var height = h|0
-	var line = lineHeight|0
-	var x = xAxis|0
-	var y = yaxis|0
-
-	while (y < height && i < length) {
-		code = data[i++]
-
-		// meta
-		if (code < -0)
-			// fill
-			if (code > -202)
-				context.fillStyle = (rgb = fill[~code+1], code = data[++i], rgb)
-			// stroke/background/other
-			if (code < 202 && code > -255)
-				switch (code) {
-					// stroke rect
-					case -202:
-					// fill rect
-					case -203:
-					// under line
-					case -204:
-					// stroke line 
-					case -205:
-				}
-
-		switch (code) {
-			// paint
-			case -255:
-				// boundary
-				if (x < width)
-					context.fillText(set, x, y),
-					x += context.measureText(set).width|0
-				set = ''
-				break
-			// newline
-			case 10:
-				y += line
-				break
-			// palette
-			default:
-				set += String.fromCharCode(code)
-		}
-	}
-}
-
-function tokenizeString (startIndex, dataSize, charCode, escadeCode, supportNewLine) {
-	var data = this.data
-
-	var i = startIndex|0
-	var type = charCode|0
-	var escape = escadeCode|0
-	var exclude = supportNewLine|0
-	var length = dataSize|0
-
-	var code = 0
-	var tail = 0
-
-	while (i < length) {
-		switch (tail = code, code = data[i++]) {
-			case exclude:
-				length = i
-				break
-			case type:
-				if (tail !== escape)
-					length = i
-				break
-		}
-	}
-
-	return i
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 (function demo(){
-	var input = ''
 	var i = 0
 	var begin = 0;
 	var template = `
@@ -976,14 +705,12 @@ function step (value) {
 						this.line--
 				}
 	}
+}`
+var input = ''
+// 40,000 lines
+while (i++<2000) {
+	input += template.trim()+'\n\n';
 }
-`
-	
-	// 40,000 lines
-	while (i++<2000) {
-		input += template.trim()+'\n\n';
-	}
-
 	function body () {
 		heap.insert(input)
 
@@ -991,9 +718,9 @@ function step (value) {
 		console.log('insert:', performance.now()-begin, 'ms')
 
 		// // move ~15ms
-		begin = performance.now()
-		heap.move(-(heap.pre+heap.post))
-		console.log('move*:', performance.now()-begin, 'ms')
+		// begin = performance.now()
+		// heap.move(-(heap.pre+heap.post))
+		// console.log('move*:', performance.now()-begin, 'ms')
 
 		// // render ~10ms
 		begin = performance.now()
@@ -1008,18 +735,20 @@ function step (value) {
 		console.log('')
 		console.log(`stats: ${heap.length} chars, ${heap.lines} lines`)
 	}
-
-	var heap = new Buffer(input.length, 0, (13*2)+9)
+	var heap = new Buffer(input.length, 0, 0, window.innerWidth, window.innerHeight)
+	// var heap = new Buffer(input.length, 0, (13*1.5), window.innerWidth, window.innerHeight)
+	// var heap = new Buffer(input.length, 0, ((13*1.5)*2), window.innerWidth, window.innerHeight)
+	// var heap = new Buffer(input.length, 0, ((13*1.5)*3), window.innerWidth, window.innerHeight)
+	// var heap = new Buffer(input.length, 0, ((13*1.5)*4), window.innerWidth, window.innerHeight)
+	// var heap = new Buffer(input.length, 0, ((13*1.5)*5), window.innerWidth, window.innerHeight)
 	heap.context = context
 
 	begin = performance.now()
 	body()
-
-	setTimeout(function loop () {
+	// setTimeout(function loop () {
 		// heap.y+=2
 		// heap.render()
 		// setTimeout(loop, 1000)
-	}, 500)
-
-	heap.addEventListener('wheel')
+	// }, 500)
+	// heap.addEventListener('wheel')
 })()
