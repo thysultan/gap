@@ -555,8 +555,6 @@ function render () {
 /**
  * UintArray(length)
  * 
- * 00 - unknown
- * 
  * 01 - comment(block) multi-line comments like /* and <!-- 
  * 02 - comment(line) line comments
  *
