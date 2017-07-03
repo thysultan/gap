@@ -553,48 +553,68 @@ function render () {
 }
 
 /**
- * 01 - comment(block)
- * 02 - comment(line) 
+ * UintArray(length)
+ * 
+ * 00 - unknown
+ * 
+ * 01 - comment(block) multi-line comments like /* and <!-- 
+ * 02 - comment(line) line comments
  *
  * 03 - invalid(illegal)
  * 04 - invalid(deprecated)
  *
- * 05 - string(quoted single)
- * 06 - string(quoted double)
- * 07 - string(quoted triple)
+ * 05 - string(quoted single) ''
+ * 06 - string(quoted double) ""
+ * 07 - string(quoted triple) """ """/``` ```/''' '''
  * 08 - string(quoted other)
- * 09 - string(interpolated)
- * 10 - string(regex)
- * 11 - string(other)
+ * 09 - string(unquoted)
+ * 10 - string(interpolated) “evaluated” strings i.e ${a} in `${a}`
+ * 11 - string(regex) regular expressions: /(\w+)/
+ * 12 - string(other)
  *
- * 12 - constant(numeric)
- * 13 - constant(escape)
- * 14 - constant(language)
- * 15 - constant(other)
+ * 13 - constant(numeric) 0-9
+ * 14 - constant(escape) represent characters, e.g. &lt;, \e, \031.
+ * 15 - constant(language) special constants provided by the language i.e true, false, null
+ * 16 - constant(other)
  *
- * 16 - variable(parameter)
- * 17 - variable(special) i.e this, super
- * 18 - variable(other)
+ * 17 - variable(parameter)
+ * 18 - variable(special) i.e this, super
+ * 19 - variable(other)
  *
- * 19 - storage(type)
- * 20 - storage(modifier)
+ * 20 - storage(type) class, function, int, var...
+ * 21 - storage(modifier) static, final, abstract
  * 
- * 21 - support(function)
- * 22 - support(class)
- * 23 - support(type)
- * 24 - support(constant) i.e magic value
- * 25 - support(variable)  i.e (String)
- * 26 - support(other)
+ * 22 - support(function) functions provided by the framework/library
+ * 23 - support(class) when the framework/library provides classes
+ * 24 - support(type) types provided by the framework/library
+ * 25 - support(constant) constants (magic values) provided by the framework/library
+ * 26 - support(variable) variables provided by the framework/library
+ * 27 - support(other)
  * 
- * 27 - keyword(control) i.e while, return
- * 28 - keyword(operator)
- * 29 - keyword(other)
+ * 28 - keyword(control) mainly related to flow control like continue, while, return, etc
+ * 29 - keyword(operator) operators can either be textual (e.g. or) or be characters
+ * 30 - keyword(other) other keywords
  *
- * 30 - unknown
- *
- * 031 - 060 underline
- * 161 - 190 folded 
+ * 031 - 060 namespace(hidden)
+ * 061 - 090 namespace(underline)
+ * 091 - 120 ?
+ * 121 - 150 ?
+ * 151 - 180 ?
+ * 181 - 210 ?
+ * 211 - 240 ?
+ * 241 - 255 ?
  */
+
+// demo`
+
+// ${function () {
+// 	class A {
+
+// 	}
+// 	return 1
+// }}
+
+// `
 
 /**
  * notes for a fast tokenizer system
