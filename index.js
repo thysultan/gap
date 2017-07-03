@@ -16,17 +16,18 @@ var canvasWidth = canvas.width = viewport.offsetWidth
 	var start = performance.now();
 	// var a = new Array(200*2e5);
 	var a = new Uint8Array(200*2e5);
-	a.fill(255);
 	var end = performance.now();
-	console.log(end-start, 'create')
-
+	console.log(end-start, 'create', 200*2e5)
 
 	var start = performance.now();
-	var b = new Uint8Array(200*2e5);
-	b.set(a)
-	// var b = Array.from(a)
+	var b = new Uint8Array(0);
 	var end = performance.now();
-	console.log(end-start, 'clone')
+	console.log(end-start, 'create', 0)
+
+	var start = performance.now();
+	var b = a.subarray(0, 10);
+	var end = performance.now();
+	console.log(end-start, 'create', 'view')
 
 
 	var start = performance.now();
@@ -41,6 +42,68 @@ var canvasWidth = canvas.width = viewport.offsetWidth
 	console.log('')
 	console.log(`stats: ${a.length} elements, ${a.length/200} lines, ~${a.length*1e-6} MB`)
 })();
+
+var grammer = {
+	noop: 0,
+	comment: {block: 1, line: 2},
+	invalid: {illegal: 3, deprecated: 4},
+	string: {single: 5, double: 6, triple: 7, unquoted: 8, interpolated: 9, regex: 10, other: 11},
+	constant: {numeric: 12, escape: 13, language: 14, other: 15},
+	variable: {parameter: 16, special: 17, other: 18},
+	support: {function: 19, class: 20, type: 21, constant: 22, variable: 23, other: 24},
+	storage: {type: 25, modifier: 26},
+	keyword: {control: 27, operator: 28, other: 29}
+};
+
+/**
+ * GRAMMER
+ * 
+ * UintArray(length)
+ *
+ * 00 - noop
+ * 
+ * 01 - comment(block) multi-line comments like /* and <!-- 
+ * 02 - comment(line) line comments
+ *
+ * 03 - invalid(illegal)
+ * 04 - invalid(deprecated)
+ *
+ * 05 - string(quoted single) ''
+ * 06 - string(quoted double) ""
+ * 07 - string(quoted triple) """ """/``` ```/''' '''
+ * 09 - string(unquoted)
+ * 10 - string(interpolated) “evaluated” strings i.e ${a} in `${a}`
+ * 11 - string(regex) regular expressions: /(\w+)/
+ * 12 - string(other)
+ *
+ * 13 - constant(numeric) 0-9
+ * 14 - constant(escape) represent characters, e.g. &lt;, \e, \031.
+ * 15 - constant(language) special constants provided by the language i.e true, false, null
+ * 16 - constant(other)
+ *
+ * 17 - variable(parameter)
+ * 18 - variable(special) i.e this, super
+ * 19 - variable(other)
+ * 
+ * 20 - support(function) framework/library provided functions
+ * 21 - support(class) framework/library provides classes
+ * 22 - support(type) framework/library provided types
+ * 23 - support(constant) framework/library provided magic values
+ * 24 - support(variable) framework/library provided variables
+ * 25 - support(other)
+ *
+ * 26 - storage(type) class, function, int, var, etc
+ * 27 - storage(modifier) static, final, abstract, etc
+ * 
+ * 28 - keyword(control) flow control i.e continue, while, return, etc
+ * 29 - keyword(operator) textual/character operators
+ * 30 - keyword(other) other keywords
+ *
+ * 031 - 060 namespace(hidden)
+ * 061 - 090 namespace(underline)
+ *
+ * ...
+ */
 
 /**
  * buffer
@@ -81,10 +144,10 @@ function Buffer (size, x, y, width, height) {
 	// viewport
 	this.x = x|0
 	this.y = y|0
+	this.i = 0
 
 	// syntax
-	this.state = Uint8Array.from(this.Uint8Array)
-	this.token = new Uint8Array(this.size)
+	this.syntax = new Uint8Array(0)
 
 	// context
 	this.context = null
@@ -111,9 +174,12 @@ Buffer.prototype = {
 	copy: copy,
 	peek: peek,
 
-	// paint
+	// view
 	render: render,
 	tokenize: tokenize,
+
+	// scope
+	scope: new Uint8Array(256),
 
 	// static
 	fontWidth: Math.round(13/1.666),
@@ -121,9 +187,6 @@ Buffer.prototype = {
 	lineHeight: 13*1.5,
 	tabSize: 2,
 	fontFamily: 'monospace',
-
-	// memory
-	Uint8Array: new Uint8Array(256),
 
 	// events
 	handleEvent: handleEvent,
@@ -305,7 +368,7 @@ function remove (value) {
  * @return {void}
  */
 function expand () {
-	var size = (this.size*2)+10
+	var size = (this.size+10)*2
 	var buff = new Uint8Array(size)
 
 	// copy leading characters
@@ -463,6 +526,58 @@ function hash () {
   return hash |= 0; // convert to 32bit integer
 }
 
+function parse (
+	currentChar, 
+	previousChar, 
+	currentToken, 
+	previousToken, 
+	currentIndex, 
+	syntaxPool,
+	scopePool,
+	grammer
+) {
+	switch (currentChar) {
+		// \n
+		case 10:
+			switch (currentToken) {
+				case grammer.comment.line:
+					return grammer.keyword.other
+			}
+			break
+		// *
+		case 42:
+			// comment(block)
+			switch (previousChar) {
+				case 47:
+					return grammer.comment.block
+			}
+			break
+		// /
+		case 47:
+			switch (previousChar) {
+				// /
+				case 47:
+					switch (currentToken) {
+						// comment(line)
+						case grammer.keyword.other:
+							return grammer.comment.line;						
+					}
+			}
+			break
+	}
+
+	switch (currentToken) {
+		case grammer.comment.block:
+			switch (currentChar<<previousChar) {
+				case 48128:
+					return grammer.keyword.other
+			}
+			break
+	}
+
+	return currentToken
+}
+
 /**
  * tokenize
  * 
@@ -474,36 +589,54 @@ function tokenize () {
 	var pre = this.pre
 	var post = this.post
 	var size = this.size
+	var length = this.length
 
 	// viewport
 	var steps = this.lineHeight
 	var limit = this.height
 
 	// memory
-	var token = this.token
-	var state = this.state
+	var syntax = this.syntax
+	var scope = this.scope
 
 	// meta
-	var code = 0
 	var height = 0
-	var offset = 0
 
-	// var start = performance.now()
-	//  && h <= height
+	var currentChar = 0	
+	var prevChar = 0
 
-	for (var index = 0; index < size; index++) {
-		switch (code = buff[index]) {
+	var prevToken = 0
+	var currentToken = syntax[this.i]
+	var nextToken = 0
+
+	if (length > syntax.length)
+		syntax = new Uint8Array((length+10)*2),
+		syntax.set(this.syntax)
+
+	visitor: for (var i = 0, j = 0; i < length; i++) {
+		prevChar = currentChar
+		currentChar = buff[j++]
+		
+		switch (currentChar) {
 			case 10:
 				height += steps
+
+				if (height > limit)
+					break visitor
 		}
 
-		switch (index) {
+		nextToken = parse(currentChar, prevChar, currentToken, prevToken, i, syntax, scope, grammer)
+		prevToken = currentToken
+		currentToken = nextToken
+		syntax[i] = currentToken
+
+		switch (j) {
 			case pre:
-				index = size-post
+				j = size-post
 		}
 	}
 
-	// console.log(index, this.size, this)
+	this.syntax = syntax
 }
 
 /**
@@ -633,68 +766,6 @@ function render () {
 
 	console.log((end-start), 'is the time it takes to tokenize + render ' +  this.lines+' lines')
 }
-
-/**
- * UintArray(length)
- * 
- * 01 - comment(block) multi-line comments like /* and <!-- 
- * 02 - comment(line) line comments
- *
- * 03 - invalid(illegal)
- * 04 - invalid(deprecated)
- *
- * 05 - string(quoted single) ''
- * 06 - string(quoted double) ""
- * 07 - string(quoted triple) """ """/``` ```/''' '''
- * 08 - string(quoted other)
- * 09 - string(unquoted)
- * 10 - string(interpolated) “evaluated” strings i.e ${a} in `${a}`
- * 11 - string(regex) regular expressions: /(\w+)/
- * 12 - string(other)
- *
- * 13 - constant(numeric) 0-9
- * 14 - constant(escape) represent characters, e.g. &lt;, \e, \031.
- * 15 - constant(language) special constants provided by the language i.e true, false, null
- * 16 - constant(other)
- *
- * 17 - variable(parameter)
- * 18 - variable(special) i.e this, super
- * 19 - variable(other)
- *
- * 20 - storage(type) class, function, int, var...
- * 21 - storage(modifier) static, final, abstract
- * 
- * 22 - support(function) functions provided by the framework/library
- * 23 - support(class) when the framework/library provides classes
- * 24 - support(type) types provided by the framework/library
- * 25 - support(constant) constants (magic values) provided by the framework/library
- * 26 - support(variable) variables provided by the framework/library
- * 27 - support(other)
- * 
- * 28 - keyword(control) mainly related to flow control like continue, while, return, etc
- * 29 - keyword(operator) operators can either be textual (e.g. or) or be characters
- * 30 - keyword(other) other keywords
- *
- * 031 - 060 namespace(hidden)
- * 061 - 090 namespace(underline)
- * 091 - 120 ?
- * 121 - 150 ?
- * 151 - 180 ?
- * 181 - 210 ?
- * 211 - 240 ?
- * 241 - 255 ?
- */
-
-// demo`
-
-// ${function () {
-// 	class A {
-
-// 	}
-// 	return 1
-// }}
-
-// `
 
 /**
  * notes for a fast tokenizer system
@@ -853,7 +924,8 @@ function step (value) {
 	}
 }`.trim()
 var input = ''
-while (i++<6500*2) {
+// while (i++<6500*2) {
+while (i++<3000) {
 // while (i++<1) {
 	input += template+'\n';
 }
@@ -872,7 +944,16 @@ while (i++<6500*2) {
 		// tokenize
 		begin = performance.now()
 		heap.tokenize()
-		console.log('tokenize:', performance.now()-begin, 'ms')
+		console.log('tokenize(cool):', performance.now()-begin, 'ms')
+
+		// warmup
+		for (var i = 0; i < 10; i++) {
+			heap.tokenize()
+		}
+
+		begin = performance.now()
+		heap.tokenize()
+		console.log('tokenize(warm):', performance.now()-begin, 'ms')
 
 		// render
 		// begin = performance.now()
