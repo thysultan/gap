@@ -1,8 +1,46 @@
+'use strict'
+
 var viewport = document.body
 var canvas = document.getElementById('canvas')
 var context = canvas.getContext('2d')
-var canvasHeight = canvas.height = ((32*1000)+768)-1//viewport.offsetHeight
+var canvasHeight = canvas.height = viewport.offsetHeight
 var canvasWidth = canvas.width = viewport.offsetWidth
+
+;(function () {
+	'use strict'
+
+	console.log('')
+	// 1GB
+	// var a = new Uint8Array(1e+9);
+	// 200,000 lines, 40MB
+	var start = performance.now();
+	// var a = new Array(200*2e5);
+	var a = new Uint8Array(200*2e5);
+	a.fill(255);
+	var end = performance.now();
+	console.log(end-start, 'create')
+
+
+	var start = performance.now();
+	var b = new Uint8Array(200*2e5);
+	b.set(a)
+	// var b = Array.from(a)
+	var end = performance.now();
+	console.log(end-start, 'clone')
+
+
+	var start = performance.now();
+
+	var code = 0
+	for (var i = 0, l = a.length; i < l; i++)
+		code += a[i]
+
+	var end = performance.now();
+	console.log(end-start, 'visit')
+
+	console.log('')
+	console.log(`stats: ${a.length} elements, ${a.length/200} lines, ~${a.length*1e-6} MB`)
+})();
 
 /**
  * buffer
@@ -27,7 +65,7 @@ function Buffer (size, x, y, width, height) {
 	this.post = 0
 
 	// buffer
-	this.size = (size|0)+10
+	this.size = size|0
 	this.buff = new Uint8Array(this.size)
 
 	// meta
@@ -44,74 +82,78 @@ function Buffer (size, x, y, width, height) {
 	this.x = x|0
 	this.y = y|0
 
-	// state
-	this.state = {
-		bytes: new Uint8Array(256),
-		token: new Array(256)
-	}
+	// syntax
+	this.state = Uint8Array.from(this.Uint8Array)
+	this.token = new Uint8Array(this.size)
 
 	// context
 	this.context = null
 }
 
 Buffer.prototype = {
-	// method
+	// buffer
+	forward: forward,
+	backward: backward,
 	move: move,
-	step: step,
+	find: find,
 	jump: jump,
+	push: push,
+	pop: pop,
 	insert: insert,
 	remove: remove,
-	push: push,
 	expand: expand,
+	toString: toString,
+	toBytes: toBytes,
+	fromCharCode: String.fromCharCode,
+
+	// utilities
 	select: select,
 	copy: copy,
-	find: find,
 	peek: peek,
 
+	// paint
+	render: render,
+	tokenize: tokenize,
+
 	// static
-	ratio: -1,
 	fontWidth: Math.round(13/1.666),
 	fontSize: 13,
 	lineHeight: 13*1.5,
 	tabSize: 2,
 	fontFamily: 'monospace',
 
-	// paint
-	render: render,
+	// memory
+	Uint8Array: new Uint8Array(256),
 
-	// utilities
-	toString: toString,
-	fromCharCode: String.fromCharCode,
-
-	// event
+	// events
 	handleEvent: handleEvent,
 	addEventListener: addEventListener
 }
 
 /**
- * step
+ * forward
  * 
- * @param {number} value
  * @return {void}
  */
-function step (value) {
-	switch (value|0) {
-		// forward
-		case 0:
-			if (this.post > 0)
-				switch (this.buff[this.pre++] = this.buff[this.size-this.post--]) {
-					case 10:
-						this.line++
-				}
-			break
-		// backward
-		case 1:
-			if (this.pre > 0)
-				switch (this.buff[this.size-(this.post++)-1] = this.buff[(this.pre--)-1]) {
-					case 10:
-						this.line--
-				}
-	}
+function forward () {
+	if (this.post > 0)
+		switch (this.buff[this.pre++] = this.buff[this.size-this.post--]) {
+			case 10:
+				this.line++
+		}
+}
+
+/**
+ * backward
+ * 
+ * @return {void}
+ */
+function backward () {
+	if (this.pre > 0)
+		switch (this.buff[this.size-(this.post++)-1] = this.buff[(this.pre--)-1]) {
+			case 10:
+				this.line--
+		}
 }
 
 /**
@@ -121,7 +163,6 @@ function step (value) {
  * @return {void}
  */
 function move (value) {
-	// retrieve unsigned integer
 	var length = value|0
 	var index = length < 0 ? ~length+1 : length
 
@@ -129,37 +170,12 @@ function move (value) {
 	if (length > 0)
 		// visitor
 		while (index-- > 0)
-			this.step(0)
+			this.forward()
 	// backward
 	else
 		// visitor
 		while (index-- > 0)
-			this.step(1)
-}
-
-/**
- * peek
- *
- * @desc retrieve character index at coordinates {x, y} 
- * 
- * @param {Object} value
- * @return {number}
- */
-function peek (value) {
-	var x = value.x|0
-	var y = value.y|0
-	var i = 0
-	var lineHeight = y/this.lineHeight
-
-	// reduce line distance
-	while ((y = this.find(i, 10, -1)) < lineHeight);
-		i = y
-
-	// reduce column distance
-	while ((x -= this.context.measureText(this.fromCharCode(this.buff[i])).width) > 0)
-		i++
-
-	return i
+			this.backward()
 }
 
 /**
@@ -194,49 +210,47 @@ function find (index, value, length) {
  * @return {void}
  */
 function jump (index) {
-	this.move(index|0-this.pre)
+	this.move((index|0)-this.pre)
 }
 
 /**
  * push
  * 
  * @param {number} code
- * @param {number} length
  * @return {void}
  */
-function push (code, length) {
-	switch (length|0) {
-		// insert
-		case 0: 
-			// not enough space?
-			if (this.pre + this.post === this.size)
-				this.expand()
+function push (code) {
+	// not enough space?
+	if (this.pre + this.post === this.size)
+		this.expand()
 
-			// push
-			switch (this.buff[this.pre++] = code) {
-				case 10:
-					this.line++
-					this.lines++
-					this.column = 1
-				default:
-					this.column++
-					this.length++
-			}
+	// push
+	switch (this.buff[this.pre++] = code) {
+		case 10:
+			this.line++
+			this.lines++
+			this.column = 1
+		default:
+			this.column++
+			this.length++
+	}
+}
 
-			break
-		// remove
-		case 1:
-			switch (code) {
-				case 10:
-					this.line--
-					this.lines--
-					this.column = 1
-				default:
-					this.column--
-					this.length--
-			}
-
-			break
+/**
+ * pop
+ * 
+ * @param {number} code
+ * @return {void}
+ */
+function pop (code) {
+	switch (code|0) {
+		case 10:
+			this.line--
+			this.lines--
+			this.column = 1
+		default:
+			this.column--
+			this.length--
 	}
 }
 
@@ -249,13 +263,11 @@ function push (code, length) {
 function insert (string) {
 	// more than one character
 	if (string.length > 0)
-		// fill in each character
 		for (var i = 0, j = 0, l = string.length; i < l; i++)
-			this.push(string.charCodeAt(i), 0)
-
+			this.push(string.charCodeAt(i))
 	// single character
 	else
-		this.push(string.charCodeAt(0), 0)
+		this.push(string.charCodeAt(0))
 }
 
 /**
@@ -265,7 +277,6 @@ function insert (string) {
  * @return {number}
  */
 function remove (value) {
-	// retrieve unsigned integer
 	var length = value|0
 	var index = length < 0 ? ~length+1 : length
 	var code = 0
@@ -275,13 +286,13 @@ function remove (value) {
 		// shift
 		if (value < 0)
 			if (this.pre > 0)
-				this.push(code = this.buff[this.pre--], 1)
+				this.pop(code = this.buff[this.pre--])
 			else
 				break
 		// pop
 		else
 			if (this.post > 0)
-				this.push(code = this.buff[this.post--], 1)
+				this.pop(code = this.buff[this.post--])
 			else
 				break
 
@@ -294,15 +305,14 @@ function remove (value) {
  * @return {void}
  */
 function expand () {
-	// exponatially grow, avoids frequent expansions
-	var size = this.size*2
+	var size = (this.size*2)+10
 	var buff = new Uint8Array(size)
 
-	// leading characters
+	// copy leading characters
 	for (var i = 0; i < this.pre; i++)
 		buff[i] = this.buff[i]
 
-	// tailing characters
+	// copy tailing characters
 	for (var i = 0; i < this.post; i++)
 		buff[size-i-1] = this.buff[this.size-i-1]
 
@@ -313,41 +323,68 @@ function expand () {
 /**
  * toString
  *
- * @param {number} i
- * @param {number} value
  * @return {string}
  */
-function toString (i, value) {
-	// retrieve integer
-	var length = typeof value === 'number' ? value|0 : this.length
-	var index = i|0
-
-	// setup destination buffer
+function toString () {
+	var index = 0
 	var output = ''
 
 	// leading characters
 	if (this.pre > 0)
 		// visitor
 		while (index < this.pre)
-			// within range
-			if (length > 0)
-				output += this.fromCharCode(this.buff[(length--, index++)])
-			// out of range
-			else
-				break
+			output += this.fromCharCode(this.buff[index++])
 
 	// tailing characters
 	if (this.post > 0 && (index = this.size-this.post) > 0)
 		// visitor
 		while (index < this.size)
-			// within range
-			if (length > 0)
-				output += this.fromCharCode(this.buff[(length--, index++)])
-			else
-			// out of range
-				break
+			output += this.fromCharCode(this.buff[index++])
 
 	return output
+}
+
+/**
+ * toBytes
+ *
+ * @return {Uint8Array}
+ */
+function toBytes () {
+	var index = 0
+	var output = new Uint8Array(this.length)
+
+	if (this.pre > 0)
+		output.set(this.buff.subarray(0, this.pre))
+	
+	if (this.post > 0)
+		output.set(this.buff.subarray(this.size-this.post))
+
+	return output
+}
+
+/**
+ * peek
+ *
+ * @desc retrieve character index at coordinates {x, y} 
+ * 
+ * @param {Object} value
+ * @return {number}
+ */
+function peek (value) {
+	var x = value.x|0
+	var y = value.y|0
+	var i = 0
+	var lineHeight = y/this.lineHeight
+
+	// reduce line distance
+	while ((y = this.find(i, 10, -1)) < lineHeight);
+		i = y
+
+	// reduce column distance
+	while ((x -= this.context.measureText(this.fromCharCode(this.buff[i])).width) > 0)
+		i++
+
+	return i
 }
 
 function handleEvent (e) {
@@ -426,8 +463,47 @@ function hash () {
   return hash |= 0; // convert to 32bit integer
 }
 
-function tokenize (previous, current, next, index, state) {
-	return 1
+/**
+ * tokenize
+ * 
+ * @return {void}
+ */
+function tokenize () {
+	// data
+	var buff = this.buff
+	var pre = this.pre
+	var post = this.post
+	var size = this.size
+
+	// viewport
+	var steps = this.lineHeight
+	var limit = this.height
+
+	// memory
+	var token = this.token
+	var state = this.state
+
+	// meta
+	var code = 0
+	var height = 0
+	var offset = 0
+
+	// var start = performance.now()
+	//  && h <= height
+
+	for (var index = 0; index < size; index++) {
+		switch (code = buff[index]) {
+			case 10:
+				height += steps
+		}
+
+		switch (index) {
+			case pre:
+				index = size-post
+		}
+	}
+
+	// console.log(index, this.size, this)
 }
 
 /**
@@ -483,18 +559,20 @@ function render () {
 	var token = state.token
 	var chars = ''
 
-	var start = performance.now()
+	return;
 
-	while (index < length && i < size && h <= height) {
+	// var start = performance.now()
+
+	while (index < length && i < size) { //  && h <= height
 		code = buff[i++]
 			
 		if ((code < 91 && code > 64) || (code < 123 && code > 96)) {
 			chars += this.fromCharCode(code)
 		} else {
-			if (chars.length > 0) {
-				token[index++] = chars
-				chars = ''
-			}
+			// if (chars.length > 0) {
+		// 		token[index++] = chars
+		// 		chars = ''
+			// }
 
 			if (code === 10) {
 				if (k === 0) {
@@ -503,13 +581,17 @@ function render () {
 				h += lineHeight
 			}
 
-			token[index++] = this.fromCharCode(code)
+		// 	token[index++] = this.fromCharCode(code)
 		}
 
 		if (i === pre) {
 			i = size-post
 		}
 	}
+
+	// console.log(z, i, this.pre)
+
+	return;
 
 	// canvas
 	context.canvas.width = width
@@ -740,9 +822,10 @@ function render () {
  * this allow a generic primitive to support syntax tokenizers for non ALGOL languages that support
  * dash case i.e `word-something` tokens
  */
-(function demo(){
+;(function demo(){
 	var i = 0
 	var begin = 0;
+	// ~20 lines
 	var template = `
 /**
  * step
@@ -768,46 +851,60 @@ function step (value) {
 						this.line--
 				}
 	}
-}`
+}`.trim()
 var input = ''
-// 40,000 lines
-while (i++<2000) {
-	input += template.trim()+'\n\n';
+while (i++<6500*2) {
+// while (i++<1) {
+	input += template+'\n';
 }
 	function body () {
 		heap.insert(input)
+		console.log('')
 
-		// insert ~40ms
+		// insert the whole document
 		console.log('insert:', performance.now()-begin, 'ms')
 
-		// // move ~15ms
+		// move through the whole document
+		begin = performance.now()
+		heap.move(-(heap.pre+heap.post))
+		console.log('move:', performance.now()-begin, 'ms')
+
+		// tokenize
+		begin = performance.now()
+		heap.tokenize()
+		console.log('tokenize:', performance.now()-begin, 'ms')
+
+		// render
 		// begin = performance.now()
-		// heap.move(-(heap.pre+heap.post))
-		// console.log('move*:', performance.now()-begin, 'ms')
+		// heap.render()
+		// console.log('render:', performance.now()-begin, 'ms')
 
-		// // render ~10ms
-		begin = performance.now()
-		heap.render()
-		console.log('render:', performance.now()-begin, 'ms')
+		// save the whole document
+		// begin = performance.now();
+		// var output = heap.toString();
+		// console.log('save(string):', performance.now()-begin, 'ms')
+			
+		// save the whole document with a stream buffer
+		// begin = performance.now();
+		// var output = heap.toBytes();		
+		// console.log('save(stream):', performance.now()-begin, 'ms')
 
-		// save ~ms
-		begin = performance.now()
-		heap.toString()
-		console.log('save:', performance.now()-begin, 'ms')
-		
 		console.log('')
-		console.log(`stats: ${heap.length} chars, ${heap.lines} lines`)
+		console.log(`stats: ${heap.length} chars, ${heap.lines} lines, ~${heap.length*1e-6} MB`)
 	}
-	var heap = new Buffer(input.length, 0, 0, window.innerWidth, window.innerHeight)
+
+	var heap = new Buffer(1, 0, 0, window.innerWidth, window.innerHeight)
 	// var heap = new Buffer(input.length, 0, (13*1.5), window.innerWidth, window.innerHeight)
 	// var heap = new Buffer(input.length, 0, ((13*1.5)*2), window.innerWidth, window.innerHeight)
 	// var heap = new Buffer(input.length, 0, ((13*1.5)*3), window.innerWidth, window.innerHeight)
 	// var heap = new Buffer(input.length, 0, ((13*1.5)*4), window.innerWidth, window.innerHeight)
 	// var heap = new Buffer(input.length, 0, ((13*1.5)*5), window.innerWidth, window.innerHeight)
+
 	heap.context = context
 
 	begin = performance.now()
 	body()
+
 	// setTimeout(function loop () {
 		// heap.y+=2
 		// heap.render()
