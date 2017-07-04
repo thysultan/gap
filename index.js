@@ -80,7 +80,7 @@
 	 * @param {number} height
 	 */
 	function Buffer (size, x, y, width, height) {
-		// cursor
+		// gap
 		this.pre = 0
 		this.post = 0
 
@@ -88,7 +88,7 @@
 		this.size = size|0
 		this.buff = new Uint8Array(this.size)
 
-		// meta
+		// stats
 		this.line = 1
 		this.lines = 1
 		this.column = 1
@@ -104,8 +104,36 @@
 		this.i = 0
 
 		// style
+		this.caret = [0]
 		this.style = new Uint8Array(0)
 		this.syntax = 'text'
+
+		// notes: undo/redo
+		// 
+		// @todo split this into immediate and timeline
+		// immediate will store all immediate events
+		// after some time this will them be remove from immediate
+		// and moved to timeline which is grouped into sets
+		// i.e when i type `sets` and click undo i don't want to step
+		// back character by character by the who `sets` word
+		// essentially this is a stack of generational data
+		// once a certain generation the immediate history
+		// state is moved and collected into a single history object
+		// describing that type of action that happened in that generation
+		// so we could say describe `sets`
+		// into [insert s, insert e, insert t, insert s]
+		// compact that into an array view using subarray
+		// commit = history.subarray(start, end)
+		// note subarray does not create a new array which is thus
+		// very fast since it's just a view into a specific window of an array
+		// 
+		// to add to that will try to be as lazy as possible when it comes to storage
+		// and only grow memory allocation when needed
+		// this is why we start with an empty Uint8Array array
+		// when we need more space grow into larger one, when we need more
+		// bytes per element grow into a better representation, i.e Uint16Array->Uint32Array
+		this.history = new Uint8Array(0)
+		this.commit = 0
 
 		// context
 		this.context = null
@@ -162,6 +190,12 @@
 			support: {other: 60, function: 61, class: 62, type: 63, constant: 64, variable: 65},
 			storage: {other: 70, type: 71, modifier: 72},
 			keyword: {other: 80, control: 81, operator: 82}
+		}
+
+		// @todo, on idle time build cache of suggestion keywords
+		state: {
+			// lastTime: 0
+			// lastLength: 0,
 		}
 	}
 
@@ -732,11 +766,26 @@
 		return index
 
 		// notes:
+		// 
 		// the tozenizer should consistantly at most take ~4ms
 		// the renderer will pick up from here and start
 		// drawing the to the screen from bottom up uptil it reaches the hight of the screen
 		// this should consistantly take at most ~4ms
 		// which means we have 8ms more left to do any other work
+		// 
+		// the render piple line would resemble
+		// 
+		// X -> tokenize() -> render()
+		// 
+		// where X is any operation that changes the state of what is displayed on the screen
+		// for example
+		// 
+		// 1. event(scroll) -> X
+		// 2. event(keydown) -> insert()/remove() -> X
+		// 
+		// It look like alot of work since even the smallest change(scrolling) causes a re-render
+		// but since we can archive the tokenize() -> render() phase in < 6ms
+		// we have alot of time(10ms) on our hands for off-screen ops before this
 	}
 
 	/**
