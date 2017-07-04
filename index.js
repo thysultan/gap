@@ -190,7 +190,7 @@
 			support: {other: 60, function: 61, class: 62, type: 63, constant: 64, variable: 65},
 			storage: {other: 70, type: 71, modifier: 72},
 			keyword: {other: 80, control: 81, operator: 82}
-		}
+		},
 
 		// @todo, on idle time build cache of suggestion keywords
 		state: {
