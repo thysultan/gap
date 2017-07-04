@@ -63,7 +63,7 @@
 	 */
 
 	/**
-	 * Buffer
+	 * Gap
 	 *
 	 * @desc text editor data-structure
 	 *
@@ -79,7 +79,7 @@
 	 * @param {number} width
 	 * @param {number} height
 	 */
-	function Buffer (size, x, y, width, height) {
+	function Gap (size, x, y, width, height) {
 		// gap
 		this.pre = 0
 		this.post = 0
@@ -97,16 +97,6 @@
 		// dimension
 		this.width = width|0
 		this.height = height|0
-
-		// viewport
-		this.x = x|0
-		this.y = y|0
-		this.i = 0
-
-		// style
-		this.caret = [0]
-		this.style = new Uint8Array(0)
-		this.syntax = 'text'
 
 		// notes: undo/redo
 		// 
@@ -132,14 +122,38 @@
 		// this is why we start with an empty Uint8Array array
 		// when we need more space grow into larger one, when we need more
 		// bytes per element grow into a better representation, i.e Uint16Array->Uint32Array
+		
+		// history is a (method, argument) pair represented as a uint8 
 		this.history = new Uint8Array(0)
+
+		// branches are a (index, length) pair represented as a uint8
+		this.branch = new Uint8Array(0)
+
+		// current history index
 		this.commit = 0
 
-		// context
+		// style
+		this.caret = [0]
+		this.style = new Uint8Array(0)
+
+		this.syntax = 'text'
+		this.theme = 'default'
+		this.tokenizer = noop
+
+		// viewport
 		this.context = null
+		this.x = x|0
+		this.y = y|0
+		this.i = 0
+
+		if (this.y > 0 || this.x > 0)
+			this.scroll(this.x, this.y)
+
+		// meta
+		this.state = {}
 	}
 
-	Buffer.prototype = {
+	Gap.prototype = {
 		// static
 		fontWidth: Math.round(13/1.666),
 		fontSize: 13,
@@ -170,6 +184,9 @@
 		select: select,
 		copy: copy,
 		peek: peek,
+		set: set,
+		use: use,
+		clone: clone,
 
 		// events
 		handleEvent: handleEvent,
@@ -178,9 +195,9 @@
 		// view
 		tokenize: tokenize,
 		render: render,
-		scope: new Uint8Array(256),
-		grammer: Object.create(null, {js: {value: javascriptGrammer}}),
-		rule: {
+		
+		// shared
+		shared: {
 			noop: 0,
 			comment: {other: 10, line: 11, block: 12},
 			invalid: {other: 20, illegal: 21, deprecated: 21},
@@ -189,13 +206,9 @@
 			variable: {other: 50, parameter: 51, special: 52},
 			support: {other: 60, function: 61, class: 62, type: 63, constant: 64, variable: 65},
 			storage: {other: 70, type: 71, modifier: 72},
-			keyword: {other: 80, control: 81, operator: 82}
-		},
-
-		// @todo, on idle time build cache of suggestion keywords
-		state: {
-			// lastTime: 0
-			// lastLength: 0,
+			keyword: {other: 80, control: 81, operator: 82},
+			scope: new Uint8Array(256),
+			extensions: {}
 		}
 	}
 
@@ -467,6 +480,92 @@
 	}
 
 	/**
+	 * use
+	 * 
+	 * @param {string} name 
+	 * @param {*} value
+	 * @return {*}
+	 */
+	function use (name, value) {
+		return this.shared.extensions[name] = value
+	}
+
+	/**
+	 * set
+	 * 
+	 * @param {string} name
+	 * @param {*} value
+	 */
+	function set (name, value) {
+		switch (name) {
+			case 'theme':
+				return this.theme = value || this.theme
+			case 'grammer':
+				return this.grammer = value || this.grammer
+			case 'syntax':
+				return this.syntax = value || this.syntax
+			case 'context':
+				return this.context = value || this.context
+		}
+	}
+
+	/**
+	 * noop
+	 * 
+	 * @return {number}
+	 */
+	function noop () {
+		return this.noop
+	}
+
+	/**
+	 * clone
+	 * 
+	 * @param {number=} x
+	 * @param {number=} y
+	 * @param {number=} width
+	 * @param {number=} height
+	 * @return {Gap}
+	 */
+	function clone (x, y, width, height) {
+		var varient = new this.constructor(this.size, x, y, width, height)
+
+		varient.buff.set(this.buff)
+		varient.style.set(this.style)
+		varient.history.set(this.history)
+		varient.branch.set(this.branch)
+
+		varient.comment = this.commit
+		varient.syntax = this.syntax
+		varient.theme = this.theme
+		varient.tokenizer = this.tokenizer
+
+		return varient
+	}
+
+	/**
+	 * from
+	 *
+	 * @param {*} value
+	 * @return {Gap}
+	 */
+	function from (value) {
+		var varient
+
+		if (value === null || value === void 0)
+			return new Gap(0, 0, 0, 0, 0)
+		else if (value instanceof this)
+			return value.clone(value.x, value.y, value.width, value.height)
+		else
+			switch (value.constructor) {
+				// @todo handle other data-types, i.e buffer, Uint8Array, Array, etc.
+				case String:
+					return varient = new Gap(value.length, 0, 0, 0, 0), varient.insert(value), varient
+			}
+
+	}
+
+	/**
 	 * write
 	 *
 	 * @desc write a buffer of bytes into the buffer asynchronous-ly
@@ -600,10 +699,6 @@
 	 * @param {number} currentToken
 	 * @param {number} previousToken
 	 * @param {number} currentIndex
-	 * @param {Uint8Array} stylePool
-	 * @param {Uint8Array(256)} scopePool
-	 * @param {Object} grammer
-	 * @param {Object} rule
 	 * @return {number}
 	 */
 	function javascriptGrammer (
@@ -611,27 +706,23 @@
 		previousChar, 
 		currentToken, 
 		previousToken, 
-		currentIndex, 
-		stylePool,
-		scopePool,
-		grammer,
-		rule
+		currentIndex
 	) {
 		switch (currentChar) {
 			// quotes
 			case 34:
 			case 39:
 			case 96:
-				switch (scopePool[currentChar]) {
+				switch (this.scope[currentChar]) {
 					case 0:
-						switch(scopePool[currentChar]++) {
-							case 34: return rule.string.single
-							case 39: return rule.string.double
-							case 96: return rule.string.single
+						switch(this.scope[currentChar]++) {
+							case 34: return this.string.single
+							case 39: return this.string.double
+							case 96: return this.string.single
 						}
 					break
 				default:
-					return scopePool[currentChar]--, rule.keyword.other
+					return this.scope[currentChar]--, this.keyword.other
 				}
 				break
 			// operators
@@ -647,8 +738,8 @@
 			case 93:
 			case 123:
 			case 125:
-				if (scopePool[34] + scopePool[39] + scopePool[96] === 0) {
-					return rule.keyword.operator
+				if (this.scope[34] + this.scope[39] + this.scope[96] === 0) {
+					return this.keyword.operator
 				}
 				break			
 			// *
@@ -656,7 +747,7 @@
 				// comment(block)
 				switch (previousChar) {
 					case 47:
-						return rule.comment.block
+						return this.comment.block
 				}
 				break
 			// /
@@ -666,8 +757,8 @@
 					case 47:
 						switch (currentToken) {
 							// comment(line)
-							case rule.keyword.other:
-								return rule.comment.line;						
+							case this.keyword.other:
+								return this.comment.line;						
 						}
 				}
 				break
@@ -675,18 +766,18 @@
 
 		switch (currentToken) {
 			// terminate comment(line)
-			case rule.comment.line:
+			case this.comment.line:
 				if (currentChar === 10)
 				switch (currentChar) {
 					case 10:
-						return rule.keyword.other
+						return this.keyword.other
 				}
 				break
 			// terminate comment(block)
-			case rule.comment.block:
+			case this.comment.block:
 				switch (currentChar<<previousChar) {
 					case 48128:
-						return rule.keyword.other
+						return this.keyword.other
 				}
 				break
 		}
@@ -703,9 +794,10 @@
 	 */
 	function tokenize () {
 		// data
-		var buff = this.buff
 		var pre = this.pre
 		var post = this.post
+		var buff = this.buff
+		var style = this.style
 		var size = this.size
 		var length = this.length
 
@@ -714,12 +806,10 @@
 		var limit = this.height
 		var height = 0
 
-		// memory
-		var style = this.style
-		var scope = this.scope
-		var rule = this.rule
-		var grammer = this.grammer
-		var language = grammer[this.syntax]
+		// settings
+		var syntax = this.syntax
+		var theme = this.theme
+		var tokenizer = this.tokenizer
 
 		// character
 		var head = 0	
@@ -730,7 +820,10 @@
 		var next = 0
 		var token = style[this.i]
 
-		scope.fill(0)
+		// shared
+		var shared = this.shared
+		
+		shared.scope.fill(0)
 
 		if (length > style.length)
 			style = new Uint8Array((length+10)*2),
@@ -743,17 +836,15 @@
 			switch (head) {
 				case 10:
 					height += steps
-
 					// this is an optimizations, when we are > height of viewport
 					// we bail out, it's commented out because of the stress test
 					// if (height > limit)
 						// break visitor
 			}
 
-			next = language(head, tail, token, prev, index, style, scope, grammer, rule)
+			next = tokenizer.call(shared, head, tail, token, prev, index)
 			prev = token
-			token = next
-			style[index] = token
+			style[index] = token = next
 
 			switch (caret) {
 				case pre:
@@ -1024,15 +1115,22 @@
 			console.log(`document stats: ${heap.length} chars, ${heap.lines} lines, ~${heap.length*1e-6} MB`)
 		}
 
-		var heap = new Buffer(1, 0, 0, window.innerWidth, window.innerHeight)
-		// var heap = new Buffer(input.length, 0, (13*1.5), window.innerWidth, window.innerHeight)
-		// var heap = new Buffer(input.length, 0, ((13*1.5)*2), window.innerWidth, window.innerHeight)
-		// var heap = new Buffer(input.length, 0, ((13*1.5)*3), window.innerWidth, window.innerHeight)
-		// var heap = new Buffer(input.length, 0, ((13*1.5)*4), window.innerWidth, window.innerHeight)
-		// var heap = new Buffer(input.length, 0, ((13*1.5)*5), window.innerWidth, window.innerHeight)
+		var heap = new Gap(1, 0, 0, window.innerWidth, window.innerHeight)
 
-		heap.context = context
-		heap.syntax = 'js'
+		// var heap = new Gap(input.length, 0, (13*1.5), window.innerWidth, window.innerHeight)
+		// var heap = new Gap(input.length, 0, ((13*1.5)*2), window.innerWidth, window.innerHeight)
+		// var heap = new Gap(input.length, 0, ((13*1.5)*3), window.innerWidth, window.innerHeight)
+		// var heap = new Gap(input.length, 0, ((13*1.5)*4), window.innerWidth, window.innerHeight)
+		// var heap = new Gap(input.length, 0, ((13*1.5)*5), window.innerWidth, window.innerHeight)
+
+		heap.set('context', context)
+		heap.set('syntax', 'js')
+		heap.set('grammer', javascriptGrammer)
+		
+		heap.use('default', {
+			keyword: ['#000'],
+			comment: ['gray']
+		})
 
 		begin = performance.now()
 
