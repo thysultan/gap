@@ -8,59 +8,64 @@
 	var canvasWidth = canvas.width = viewport.offsetWidth
 
 	/**
-	 * GRAMMER
-	 * 
-	 * UintArray(length)
+	 * Grammer: UintArray(256)
 	 *
-	 * 00 - noop
-	 * 
-	 * 01 - comment(block) multi-line comments like /* and <!-- 
-	 * 02 - comment(line) line comments
+	 * 00 - other(noop)
+	 * 01 - other(whitespace(tab))
+	 * 02 - other(whitespace(space))
+	 * 03 - other(whitespace(newline))
 	 *
-	 * 03 - invalid(illegal)
-	 * 04 - invalid(deprecated)
+	 * 10 - comment(other)
+	 * 11 - comment(line) line comments
+	 * 12 - comment(block) multi-line comments like /* and <!-- 
 	 *
-	 * 05 - string(quoted single) ''
-	 * 06 - string(quoted double) ""
-	 * 07 - string(quoted triple) """ """/``` ```/''' '''
-	 * 09 - string(unquoted)
-	 * 10 - string(interpolated) “evaluated” strings i.e ${a} in `${a}`
-	 * 11 - string(regex) regular expressions: /(\w+)/
-	 * 12 - string(other)
+	 * 20 - invalid(other)
+	 * 21 - invalid(illegal)
+	 * 22 - invalid(deprecated)
 	 *
-	 * 13 - constant(numeric) 0-9
-	 * 14 - constant(escape) represent characters, e.g. &lt;, \e, \031.
-	 * 15 - constant(language) special constants provided by the language i.e true, false, null
-	 * 16 - constant(other)
+	 * 30 - string(other)
+	 * 31 - string(quoted single) ''
+	 * 32 - string(quoted double) ""
+	 * 33 - string(template) ``
+	 * 34 - string(quoted triple) """ """/``` ```/''' '''
+	 * 35 - string(unquoted)
+	 * 36 - string(interpolated) “evaluated” strings i.e ${a} in `${a}`
+	 * 37 - string(regex) regular expressions: /(\w+)/
 	 *
-	 * 17 - variable(parameter)
-	 * 18 - variable(special) i.e this, super
-	 * 19 - variable(other)
-	 * 
-	 * 20 - support(function) framework/library provided functions
-	 * 21 - support(class) framework/library provides classes
-	 * 22 - support(type) framework/library provided types
-	 * 23 - support(constant) framework/library provided magic values
-	 * 24 - support(variable) framework/library provided variables
-	 * 25 - support(other)
+	 * 40 - constant(other)
+	 * 41 - constant(numeric) 0-9
+	 * 42 - constant(escape) represent characters, e.g. &lt;, \e, \031.
+	 * 43 - constant(language) special constants provided by the language i.e true, false, null
 	 *
-	 * 26 - storage(type) class, function, int, var, etc
-	 * 27 - storage(modifier) static, final, abstract, etc
-	 * 
-	 * 28 - keyword(control) flow control i.e continue, while, return, etc
-	 * 29 - keyword(operator) textual/character operators
-	 * 30 - keyword(other) other keywords
+	 * 53 - variable(other)
+	 * 51 - variable(parameter)
+	 * 52 - variable(special) i.e this, super
 	 *
-	 * 031 - 060 namespace(hidden)
-	 * 061 - 090 namespace(underline)
+	 * 60 - support(other)
+	 * 61 - support(function) framework/library provided functions
+	 * 62 - support(class) framework/library provides classes
+	 * 63 - support(type) framework/library provided types
+	 * 64 - support(constant) framework/library provided magic values
+	 * 65 - support(variable) framework/library provided variables
+	 *
+	 * 70 - storage(other)
+	 * 71 - storage(type) class, function, int, var, etc
+	 * 72 - storage(modifier) static, final, abstract, etc
+	 *
+	 * 80 - keyword(other) other keywords
+	 * 81 - keyword(control) flow control i.e continue, while, return, etc
+	 * 82 - keyword(operator) textual/character operators
+	 *
+	 * 090 - 172 namespace(hidden) allows for code folding
+	 * 172 - 254 namespace(underline) ?
 	 *
 	 * ...
 	 */
 
 	/**
-	 * buffer
+	 * Buffer
 	 *
-	 * @desc
+	 * @desc text editor data-structure
 	 *
 	 * 	[1, 2, 3, _, 5] init
 	 *  [1, 2, 3, 4, 5] inset
@@ -107,6 +112,13 @@
 	}
 
 	Buffer.prototype = {
+		// static
+		fontWidth: Math.round(13/1.666),
+		fontSize: 13,
+		lineHeight: 13*1.5,
+		tabSize: 2,
+		fontFamily: 'monospace',
+
 		// buffer
 		forward: forward,
 		backward: backward,
@@ -122,17 +134,14 @@
 		toBytes: toBytes,
 		fromCharCode: String.fromCharCode,
 
+		// async
+		write: write,
+		read: read,
+
 		// utilities
 		select: select,
 		copy: copy,
 		peek: peek,
-
-		// static
-		fontWidth: Math.round(13/1.666),
-		fontSize: 13,
-		lineHeight: 13*1.5,
-		tabSize: 2,
-		fontFamily: 'monospace',
 
 		// events
 		handleEvent: handleEvent,
@@ -145,19 +154,22 @@
 		grammer: Object.create(null, {js: {value: javascriptGrammer}}),
 		rule: {
 			noop: 0,
-			comment: {block: 1, line: 2},
-			invalid: {illegal: 3, deprecated: 4},
-			string: {single: 5, double: 6, triple: 7, unquoted: 8, interpolated: 9, regex: 10, other: 11},
-			constant: {numeric: 12, escape: 13, language: 14, other: 15},
-			variable: {parameter: 16, special: 17, other: 18},
-			support: {function: 19, class: 20, type: 21, constant: 22, variable: 23, other: 24},
-			storage: {type: 25, modifier: 26},
-			keyword: {control: 27, operator: 28, other: 29}
+			comment: {other: 10, line: 11, block: 12},
+			invalid: {other: 20, illegal: 21, deprecated: 21},
+			string: {other: 30, single: 31, double: 32, template: 33, triple: 34, unquoted: 35, interpolated: 36, regex: 37},
+			constant: {other: 40, numeric: 41, escape: 42, language: 43},
+			variable: {other: 50, parameter: 51, special: 52},
+			support: {other: 60, function: 61, class: 62, type: 63, constant: 64, variable: 65},
+			storage: {other: 70, type: 71, modifier: 72},
+			keyword: {other: 80, control: 81, operator: 82}
 		}
 	}
 
 	/**
 	 * forward
+	 *
+	 * @desc move cursor forward
+	 * @private
 	 * 
 	 * @return {void}
 	 */
@@ -171,6 +183,9 @@
 
 	/**
 	 * backward
+	 *
+	 * @desc move cursor backward
+	 * @private
 	 * 
 	 * @return {void}
 	 */
@@ -184,6 +199,9 @@
 
 	/**
 	 * move
+	 *
+	 * @desc move cursor forward/backward by a specific length
+	 * @public
 	 * 
 	 * @param {number} value
 	 * @return {void}
@@ -205,9 +223,23 @@
 	}
 
 	/**
+	 * jump
+	 *
+	 * @desc move the cursor to a specific index
+	 * @public
+	 * 
+	 * @param {number} index
+	 * @return {void}
+	 */
+	function jump (index) {
+		this.move((index|0)-this.pre)
+	}
+
+	/**
 	 * find
 	 *
-	 * @desc regular expressions primitive
+	 * @desc regular expression primitive
+	 * @public
 	 * 
 	 * @param {number} index
 	 * @param {number} value
@@ -230,17 +262,10 @@
 	}
 
 	/**
-	 * jump
-	 * 
-	 * @param {number} index
-	 * @return {void}
-	 */
-	function jump (index) {
-		this.move((index|0)-this.pre)
-	}
-
-	/**
 	 * push
+	 *
+	 * @desc insert a single character
+	 * @private
 	 * 
 	 * @param {number} code
 	 * @return {void}
@@ -264,6 +289,9 @@
 
 	/**
 	 * pop
+	 *
+	 * @desc remove a single character
+	 * @private
 	 * 
 	 * @param {number} code
 	 * @return {void}
@@ -282,6 +310,9 @@
 
 	/**
 	 * insert
+	 *
+	 * @desc insert a single/multiple characters
+	 * @public
 	 * 
 	 * @param {string} string
 	 * @return {void}
@@ -298,6 +329,10 @@
 
 	/**
 	 * remove
+	 *
+	 * @desc remove a character from the position of the caret
+	 * in either the forward/backward direction
+	 * @public
 	 * 
 	 * @param {number} value
 	 * @return {number}
@@ -327,6 +362,9 @@
 
 	/**
 	 * expand
+	 *
+	 * @desc allocate more memory
+	 * @private
 	 * 
 	 * @return {void}
 	 */
@@ -348,6 +386,9 @@
 
 	/**
 	 * toString
+	 *
+	 * @desc returns buffer as string
+	 * @public
 	 *
 	 * @return {string}
 	 */
@@ -373,6 +414,9 @@
 	/**
 	 * toBytes
 	 *
+	 * @desc return continues uint8[] of character codes
+	 * @public
+	 *
 	 * @return {Uint8Array}
 	 */
 	function toBytes () {
@@ -389,9 +433,38 @@
 	}
 
 	/**
+	 * write
+	 *
+	 * @desc write a buffer of bytes into the buffer asynchronous-ly
+	 * @public
+	 * 
+	 * @param {Readable} stream
+	 * @param {Promise}
+	 */
+	function write (stream) {
+		return new Promise(function (resolve, reject) {
+			// @todo read stream buffer as raw uint8 bytes
+			resolve()
+		})
+	}
+
+	/**
+	 * read
+	 *
+	 * @desc read from the buffer as a Readable stream
+	 * @public
+	 * 
+	 * @return {Stream}
+	 */
+	function read () {
+		// @todo Readable stream
+	}
+
+	/**
 	 * peek
 	 *
 	 * @desc retrieve character index at coordinates {x, y} 
+	 * @todo ... figure out what this should do?
 	 * 
 	 * @param {Object} value
 	 * @return {number}
@@ -430,55 +503,75 @@
 		}
 	}
 
-	function addEventListener () {
+	/**
+	 * addEventListener
+	 *
+	 * @desc add event listerner
+	 *
+	 * @param handler
+	 * @return {void}
+	 */
+	function addEventListener (handler) {
 		if (this.context !== null)
+			// @todo add to one pool of event->handler
 			this.context.canvas.addEventListener('mousewheel', this, {passive: true})
 	}
 
 	/**
 	 * select
 	 *
-	 * @param {number} x1
-	 * @param {number} x2
-	 * @param {number} y1
-	 * @param {number} y2
+	 * @desc select
+	 * 
+	 * @param {number} index
+	 * @param {number} length
 	 * @return {void}
 	 */
-	function select (x1, y1, x2, y2) {
-		// select coordinates
-		if (x1|0 !== x2|0)
-			0
-		// unselect coordinates
-		else
-			0
+	function select (index, length) {
+		// @todo
 	}
 
 	/**
 	 * copy
+	 *
+	 * @desc copy selection/line
 	 * 
 	 * @return {string}
 	 */
 	function copy () {
-		var select = this.select
-
 		// @todo copy line
 		if (select.length === 0)
 			return ''
+		// @todo ...
 	}
 
 	/**
 	 * cut
+	 *
+	 * @desc cut selection/line
 	 * 
 	 * @return {string}
 	 */
 	function cut () {
-		var select = this.select
-
-		// @todo cut line
-		if (select.length === 0)
-			return ''
+		// this.copy()
+		// this.remove() all copied characters	
 	}
 
+	/**
+	 * javascriptGrammer Example
+	 *
+	 * @todo add unlimited lookbehind feature
+	 * 
+	 * @param {number} currentChar
+	 * @param {number} previousChar
+	 * @param {number} currentToken
+	 * @param {number} previousToken
+	 * @param {number} currentIndex
+	 * @param {Uint8Array} stylePool
+	 * @param {Uint8Array(256)} scopePool
+	 * @param {Object} grammer
+	 * @param {Object} rule
+	 * @return {number}
+	 */
 	function javascriptGrammer (
 		currentChar, 
 		previousChar, 
@@ -495,8 +588,18 @@
 			case 34:
 			case 39:
 			case 96:
+				switch (scopePool[currentChar]) {
+					case 0:
+						switch(scopePool[currentChar]++) {
+							case 34: return rule.string.single
+							case 39: return rule.string.double
+							case 96: return rule.string.single
+						}
+					break
+				default:
+					return scopePool[currentChar]--, rule.keyword.other
+				}
 				break
-
 			// operators
 			case 33:
 			case 40:
@@ -513,14 +616,7 @@
 				if (scopePool[34] + scopePool[39] + scopePool[96] === 0) {
 					return rule.keyword.operator
 				}
-				break
-			// \n
-			case 10:
-				switch (currentToken) {
-					case rule.comment.line:
-						return rule.keyword.other
-				}
-				break
+				break			
 			// *
 			case 42:
 				// comment(block)
@@ -544,6 +640,15 @@
 		}
 
 		switch (currentToken) {
+			// terminate comment(line)
+			case rule.comment.line:
+				if (currentChar === 10)
+				switch (currentChar) {
+					case 10:
+						return rule.keyword.other
+				}
+				break
+			// terminate comment(block)
 			case rule.comment.block:
 				switch (currentChar<<previousChar) {
 					case 48128:
@@ -557,6 +662,8 @@
 
 	/**
 	 * tokenize
+	 *
+	 * @desc tokenize characters
 	 * 
 	 * @return {void}
 	 */
@@ -603,6 +710,8 @@
 				case 10:
 					height += steps
 
+					// this is an optimizations, when we are > height of viewport
+					// we bail out, it's commented out because of the stress test
 					// if (height > limit)
 						// break visitor
 			}
@@ -632,6 +741,10 @@
 
 	/**
 	 * render
+	 *
+	 * @desc render visible viewport
+	 *
+	 * @todo use new defined grammer for new render
 	 * 
 	 * @return {void}
 	 */
@@ -758,132 +871,6 @@
 		console.log((end-start), 'is the time it takes to tokenize + render ' +  this.lines+' lines')
 	}
 
-	/**
-	 * notes for a fast tokenizer system
-	 *
-	 * 1. start position === dirty slot (slot where the old tokenized data has become obsolete)
-	 * 2. end position === clean slot (slot where old tokenized data is still valid)
-	 * 3. we then only ever tokenize the delta between 1 & 2
-	 * 
-	 * fill is a 1-1 set instructions of how to style the characters
-	 * when it is invalidated a tokenizations sweep is run to update the delta
-	 *
-	 * chars [v, a, r, , =, a]
-	 * codes [118, 97, 114, 32, 61, 32, 91]
-	 * style [100, 0, 0, 0, 0, 20, 0, 0, 10]
-	 *
-	 * psuedo
-	 *  draw `var ` - #100
-	 *  draw `=` #20
-	 *  draw `a` #10
-	 *
-	 * ------------------------------------
-	 * 
-	 * or maybe have a simple approach
-	 *
-	 * and let the different tokenizes implement their
-	 * own logic based on these primitives
-	 *
-	 * where tokenz are either
-	 *
-	 * 1. operatores: [^A-z0-9]
-	 * 2. words/letters: key frame new
-	 * 3. numbers 0-9
-	 * 
-	 * (
-	 * 		previousToken<string>, 
-	 * 		currentToken<string>, 
-	 * 		nextToken<string>, 
-	 * 		tokenIndex<number>, 
-	 * 		Uint8Array<255>
-	 * ): this = tokens[]
-	 *
-	 * for example
-	 *
-	 * foo.key
-	 * 
-	 * (NULL, 'foo', '.', 0)
-	 * ('foo', '.', 'key', 1)
-	 * ('.', 'key', NULL, 2)
-	 *
-	 * //
-	 *
-	 * (NULL, '/', '/')
-	 * ('/', '/', NULL)
-	 *
-	 * the tokenIndex allows you to look behind/head further at future/previous tokens
-	 * incase more context is required.
-	 *
-	 * The Uint8Array<255> can be used to store state between tokens
-	 *
-	 * i.e
-	 *
-	 * `Hello ${a}`
-	 *
-	 * (NULL, '`', 'H')
-	 *
-	 * ` char code is 96 so we can do the following when the 
-	 * first instance of ` appears
-	 *
-	 * Uint8Array[96] = 1
-	 *
-	 * then remove it with the second instance
-	 *
-	 * Uint8Array[96] = 0
-	 *
-	 * This allows us to tokenize tokens in strings/string literals
-	 *
-	 *
-	 * the return value of the tokenizer would be the type of the current token
-	 * this type will be an address between 0-50 increments that represents the tokens type
-	 *
-	 * this means that
-	 * 
-	 * 1-50 is equal to
-	 * 51-100 
-	 * 101-150 as is
-	 * 151-200 and
-	 * 201-250
-	 *
-	 * This allows us store meta an extra piece of meta data into one return value
-	 * by returning a value from a specific group that carries the same meaning
-	 *
-	 * i.e say 1 represents variables token
-	 * 
-	 * 51 would also represent variables tokens but also displayed with a strike over them
-	 * 101 would also represent variables but also displayed with an underline below them
-	 * 151 would also represent variables but also displayed with a stroked rect drawn around it
-	 * 201 would also represent varialbes but also displayed with a filled rect drawn behind it
-	 *
-	 * 0, 251-255 might represent special meta data
-	 *
-	 * we could also add a sign into the mix to represent 3 pieces of meta data
-	 * with the one value
-	 *
-	 * i.e -201 could represent varialbes but also displayed with a filled rect drawn behind it 
-	 * to represent a syntax error
-	 *
-	 * i.e -1
-	 *
-	 * using primitive data types like numbers makes this all very good for performance and memory
-	 *
-	 * there should also be a way to say merge the current token with the last token
-	 *
-	 * i.e word_something
-	 *
-	 * `word` `_` `something`
-	 *
-	 * when `_` is passed
-	 *
-	 * it say to merge it with the previous and or next token type
-	 *
-	 * this will make it `word_something`
-	 *
-	 * or `word_` depending on what the tokenizer wants
-	 *
-	 * this allow a generic primitive to support syntax tokenizers for non ALGOL languages that support
-	 * dash case i.e `word-something` tokens
-	 */
 	;(function demo(){
 		var i = 0
 		var begin = 0;
