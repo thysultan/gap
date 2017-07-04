@@ -1,6 +1,6 @@
 # Gap
 
-A highlight extendable text edtor written in JavaScript rendering to a Canvas context.
+An extendable text edtor written in JavaScript rendering to a Canvas context.
 
 The goal is to write a highlighy extendable editor that any other editor could in theory be built out of.
 
@@ -19,7 +19,7 @@ It stree tests
 All the tests are run twice, once in a cold(first function call) run the second time after running the respective
 functions 5 times.
 
-For the purpose of the stress test the test intentionally avoids vieport based optimizations like draw distance.
+For the purpose of the stress test the test intentionally avoids viewport based optimizations like draw distance.
 
 With the draw distance optimization enabled tokenization takes 0.160(warm) ms 8.049(cold) ms
 Rendering to canvas takes ~4ms(cold), haven't yet benched a warm run for rendering.
