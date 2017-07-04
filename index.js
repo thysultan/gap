@@ -162,8 +162,6 @@
 		fontFamily: 'monospace',
 
 		// buffer
-		forward: forward,
-		backward: backward,
 		move: move,
 		find: find,
 		jump: jump,
@@ -213,38 +211,6 @@
 	}
 
 	/**
-	 * forward
-	 *
-	 * @desc move cursor forward
-	 * @private
-	 * 
-	 * @return {void}
-	 */
-	function forward () {
-		if (this.post > 0)
-			switch (this.buff[this.pre++] = this.buff[this.size-this.post--]) {
-				case 10:
-					this.line++
-			}
-	}
-
-	/**
-	 * backward
-	 *
-	 * @desc move cursor backward
-	 * @private
-	 * 
-	 * @return {void}
-	 */
-	function backward () {
-		if (this.pre > 0)
-			switch (this.buff[this.size-(this.post++)-1] = this.buff[(this.pre--)-1]) {
-				case 10:
-					this.line--
-			}
-	}
-
-	/**
 	 * move
 	 *
 	 * @desc move cursor forward/backward by a specific length
@@ -257,16 +223,30 @@
 		var length = value|0
 		var index = length < 0 ? ~length+1 : length
 
+		var pre = this.pre
+		var post = this.post
+		var size = this.size
+		var buff = this.buff
+
 		// forward
 		if (length > 0)
 			// visitor
 			while (index-- > 0)
-				this.forward()
+				if (post > 0)
+					buff[pre++] = buff[size-post--]
+				else
+					break
 		// backward
 		else
 			// visitor
 			while (index-- > 0)
-				this.backward()
+				if (pre > 0)
+					buff[size-(post++)-1] = buff[(pre--)-1]
+				else
+					break
+
+		this.pre = pre
+		this.post = post
 	}
 
 	/**
@@ -294,11 +274,14 @@
 	 */
 	function find (index, value, length) {
 		var i = index|0
-		var x = length < 0 ? this.size : length|0
+		var x = length < 0 ? size : length|0
+
+		var size = this.size
+		var buff = this.buff
 
 		if (value|0 > -1)
-			while (i < this.size && x-- > 0)
-				switch (this.buff[i++]) {
+			while (i < size && x-- > 0)
+				switch (buff[i++]) {
 					case value|0:
 						return i
 				}
@@ -369,6 +352,7 @@
 		if (string.length > 0)
 			for (var i = 0, j = 0, l = string.length; i < l; i++)
 				this.push(string.charCodeAt(i))
+
 		// single character
 		else
 			this.push(string.charCodeAt(0))
@@ -389,20 +373,27 @@
 		var index = length < 0 ? ~length+1 : length
 		var code = 0
 
-		// visitor
-		while (index-- > 0)
-			// shift
-			if (value < 0)
-				if (this.pre > 0)
-					this.pop(code = this.buff[this.pre--])
+		var pre = this.pre
+		var post = this.post
+		var buff = this.buff
+
+		// shift
+		if (value < 0)
+			while (index-- > 0)
+				if (pre > 0)
+					this.pop(code = buff[pre--])
 				else
 					break
-			// pop
-			else
-				if (this.post > 0)
-					this.pop(code = this.buff[this.post--])
+		// pop
+		else
+			while (index-- > 0)
+				if (post > 0)
+					this.pop(code = buff[post--])
 				else
 					break
+
+		this.pre = pre
+		this.post = post
 
 		return code
 	}
@@ -416,19 +407,26 @@
 	 * @return {void}
 	 */
 	function expand () {
-		var size = (this.size+10)*2
-		var buff = new Uint8Array(size)
+		var pre = this.pre
+		var post = this.post
+		var size = this.size
+		var buff = this.buff
+
+		var sizeX2 = (size+10)*2
+		var buffX2 = new Uint8Array(sizeX2)
 
 		// copy leading characters
-		for (var i = 0; i < this.pre; i++)
-			buff[i] = this.buff[i]
+		for (var i = 0; i < pre; i++)
+			buffX2[i] = buff[i]
 
 		// copy tailing characters
-		for (var i = 0; i < this.post; i++)
-			buff[size-i-1] = this.buff[this.size-i-1]
+		for (var i = 0; i < post; i++)
+			buffX2[sizeX2-i-1] = buff[size-i-1]
 
-		this.buff = buff
-		this.size = size
+		this.pre = pre
+		this.post = post
+		this.size = sizeX2
+		this.buff = buffX2
 	}
 
 	/**
@@ -443,17 +441,22 @@
 		var index = 0
 		var output = ''
 
+		var pre = this.pre
+		var post = this.post
+		var size = this.size
+		var buff = this.buff
+
 		// leading characters
-		if (this.pre > 0)
+		if (pre > 0)
 			// visitor
-			while (index < this.pre)
-				output += this.fromCharCode(this.buff[index++])
+			while (index < pre)
+				output += this.fromCharCode(buff[index++])
 
 		// tailing characters
-		if (this.post > 0 && (index = this.size-this.post) > 0)
+		if (post > 0 && (index = size-post) > 0)
 			// visitor
-			while (index < this.size)
-				output += this.fromCharCode(this.buff[index++])
+			while (index < size)
+				output += this.fromCharCode(buff[index++])
 
 		return output
 	}
@@ -470,11 +473,16 @@
 		var index = 0
 		var output = new Uint8Array(this.length)
 
-		if (this.pre > 0)
-			output.set(this.buff.subarray(0, this.pre))
+		var pre = this.pre
+		var post = this.post
+		var size = this.size
+		var buff = this.buff
+
+		if (pre > 0)
+			output.set(buff.subarray(0, pre))
 		
-		if (this.post > 0)
-			output.set(this.buff.subarray(this.size-this.post))
+		if (post > 0)
+			output.set(buff.subarray(size-post))
 
 		return output
 	}
@@ -796,9 +804,9 @@
 		// data
 		var pre = this.pre
 		var post = this.post
+		var size = this.size
 		var buff = this.buff
 		var style = this.style
-		var size = this.size
 		var length = this.length
 
 		// viewport
@@ -826,10 +834,9 @@
 		shared.scope.fill(0)
 
 		if (length > style.length)
-			style = new Uint8Array((length+10)*2),
-			style.set(this.style)
+			(style = new Uint8Array((length+10)*2)).set(this.style)
 
-		visitor: for (var index = 0, caret = 0; index < length; index++) {
+		for (var index = 0, caret = 0; index < length; index++) {
 			tail = head
 			head = buff[caret++]
 			
@@ -842,7 +849,7 @@
 						// break visitor
 			}
 
-			next = tokenizer.call(shared, head, tail, token, prev, index)
+			next = 0//tokenizer.call(shared, head, tail, token, prev, index)
 			prev = token
 			style[index] = token = next
 
@@ -1126,7 +1133,7 @@
 		heap.set('context', context)
 		heap.set('syntax', 'js')
 		heap.set('grammer', javascriptGrammer)
-		
+
 		heap.use('default', {
 			keyword: ['#000'],
 			comment: ['gray']
