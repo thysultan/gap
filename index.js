@@ -894,7 +894,7 @@
 
 					if (code === 10 || i === size-1)
 						if ((state[line] = token, line++, height += step) > limit)
-							size = i
+							0// size = i
 			}
 		}
 	}
