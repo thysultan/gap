@@ -17,16 +17,17 @@
 	 *
 	 * 10 - comment(other)
 	 * 11 - comment(line) line comments
-	 * 12 - comment(block) multi-line comments like /* and <!-- 
+	 * 12 - comment(block) multi-line comments i.e /* and <!-- 
 	 *
 	 * 20 - invalid(other)
 	 * 21 - invalid(illegal)
 	 * 22 - invalid(deprecated)
+	 * 23 - invalid(syntax)
 	 *
 	 * 30 - string(other)
 	 * 31 - string(quoted single) ''
 	 * 32 - string(quoted double) ""
-	 * 33 - string(template) ``
+	 * 33 - string(quoted template) ``
 	 * 34 - string(quoted triple) """ """/``` ```/''' '''
 	 * 35 - string(unquoted)
 	 * 36 - string(interpolated) “evaluated” strings i.e ${a} in `${a}`
@@ -56,8 +57,8 @@
 	 * 81 - keyword(control) flow control i.e continue, while, return, etc
 	 * 82 - keyword(operator) textual/character operators
 	 *
-	 * 090 - 172 namespace(hidden) allows for code folding
-	 * 172 - 254 namespace(underline) ?
+	 * 090 - 172 namespace(hidden) i.e code folding
+	 * 172 - 254 namespace(underline) i.e matching characters
 	 *
 	 * ...
 	 */
@@ -65,7 +66,7 @@
 	/**
 	 * Gap
 	 *
-	 * @desc text editor data-structure
+	 * @desc data-structure
 	 *
 	 * 	[1, 2, 3, _, 5] init
 	 *  [1, 2, 3, 4, 5] inset
@@ -85,74 +86,78 @@
 		this.post = 0
 
 		// buffer
-		this.size = size|0
-		this.buff = new Uint8Array(this.size)
+		this.size = size === 0 ? 1 : size|0
+		this.data = new Uint8Array(this.size)
+
+		// dimension
+		this.width = width|0
+		this.height = height|0
+
+		// canvas
+		this.context = null
+		
+		// viewport
+		this.xaxis = x|0
+		this.yaxis = y|0
+
+		// offset
+		this.index = 0
+		this.offset = 0
 
 		// stats
 		this.line = 1
 		this.lines = 1
 		this.column = 1
 		this.length = 0
-
-		// dimension
-		this.width = width|0
-		this.height = height|0
-
-		// notes: undo/redo
-		// 
-		// @todo split this into immediate and timeline
-		// immediate will store all immediate events
-		// after some time this will them be remove from immediate
-		// and moved to timeline which is grouped into sets
-		// i.e when i type `sets` and click undo i don't want to step
-		// back character by character by the who `sets` word
-		// essentially this is a stack of generational data
-		// once a certain generation the immediate history
-		// state is moved and collected into a single history object
-		// describing that type of action that happened in that generation
-		// so we could say describe `sets`
-		// into [insert s, insert e, insert t, insert s]
-		// compact that into an array view using subarray
-		// commit = history.subarray(start, end)
-		// note subarray does not create a new array which is thus
-		// very fast since it's just a view into a specific window of an array
-		// 
-		// to add to that will try to be as lazy as possible when it comes to storage
-		// and only grow memory allocation when needed
-		// this is why we start with an empty Uint8Array array
-		// when we need more space grow into larger one, when we need more
-		// bytes per element grow into a better representation, i.e Uint16Array->Uint32Array
+			
+		// syntax
+		this.syntax = noop
+		this.theme = 'default'
+		this.state = [0]
+	
+		/* 
+			notes: undo/redo
+			
+			@todo split this into immediate and timeline
+			immediate will store all immediate events
+			after some time this will them be remove from immediate
+			and moved to timeline which is grouped into sets
+			i.e when i type `sets` and click undo i don't want to step
+			back character by character by the who `sets` word
+			essentially this is a stack of generational data
+			once a certain generation the immediate history
+			state is moved and collected into a single history object
+			describing that type of action that happened in that generation
+			so we could say describe `sets`
+			into [insert s, insert e, insert t, insert s]
+			compact that into an array view using subarray
+			commit = history.subarray(start, end)
+			note subarray does not create a new array which is thus
+			very fast since it's just a view into a specific window of an array
+			
+			to add to that will try to be as lazy as possible when it comes to storage
+			and only grow memory allocation when needed
+			this is why we start with an empty Uint8Array array
+			when we need more space grow into larger one, when we need more
+			bytes per element grow into a better representation, i.e Uint16Array->Uint32Array
+		*/
 		
 		// history is a (method, argument) pair represented as a uint8 
-		this.history = new Uint8Array(0)
+		// this.history = new Uint8Array(0)
 
 		// branches are a (index, length) pair represented as a uint8
-		this.branch = new Uint8Array(0)
+		// used to represented a pair of actions in history
+		// this.branch = new Uint8Array(0)
 
-		// current history index
-		this.commit = 0
-
-		// style
-		this.caret = [0]
-		this.style = new Uint8Array(0)
-
-		this.syntax = 'text'
-		this.theme = 'default'
-		this.tokenizer = noop
-
-		// viewport
-		this.context = null
-		this.x = x|0
-		this.y = y|0
-		this.i = 0
-
-		if (this.y > 0 || this.x > 0)
-			this.scroll(this.x, this.y)
-
-		// meta
-		this.state = {}
+		// current branch index
+		// this.commit = 0
 	}
 
+	/**
+	 * Gap prototype
+	 *
+	 * @type {Object}
+	 */
 	Gap.prototype = {
 		// static
 		fontWidth: Math.round(13/1.666),
@@ -172,19 +177,17 @@
 		expand: expand,
 		toString: toString,
 		toBytes: toBytes,
-		fromCharCode: String.fromCharCode,
-
-		// async
 		write: write,
 		read: read,
+		set: set,
+		use: use,
+		fromCharCode: String.fromCharCode,
+		charCodeAt: charCodeAt,
+		charAt: charAt,
 
-		// utilities
 		select: select,
 		copy: copy,
 		peek: peek,
-		set: set,
-		use: use,
-		clone: clone,
 
 		// events
 		handleEvent: handleEvent,
@@ -193,22 +196,34 @@
 		// view
 		tokenize: tokenize,
 		render: render,
-		
-		// shared
-		shared: {
+		anchor: anchor,
+
+		// grammer
+		grammer: {
 			noop: 0,
 			comment: {other: 10, line: 11, block: 12},
-			invalid: {other: 20, illegal: 21, deprecated: 21},
+			invalid: {other: 20, illegal: 21, deprecated: 22, syntax: 23},
 			string: {other: 30, single: 31, double: 32, template: 33, triple: 34, unquoted: 35, interpolated: 36, regex: 37},
 			constant: {other: 40, numeric: 41, escape: 42, language: 43},
 			variable: {other: 50, parameter: 51, special: 52},
 			support: {other: 60, function: 61, class: 62, type: 63, constant: 64, variable: 65},
 			storage: {other: 70, type: 71, modifier: 72},
 			keyword: {other: 80, control: 81, operator: 82},
-			scope: new Uint8Array(256),
-			extensions: {}
-		}
+		},
+
+		// temporary memory
+		scope: new Uint8Array(256),
+
+		// extensions
+		package: Object.create(null)
 	}
+
+	/**
+	 * Gap utilities
+	 * 
+	 * @type {function}
+	 */
+	Gap.from = from
 
 	/**
 	 * move
@@ -226,14 +241,14 @@
 		var pre = this.pre
 		var post = this.post
 		var size = this.size
-		var buff = this.buff
+		var data = this.data
 
 		// forward
 		if (length > 0)
 			// visitor
 			while (index-- > 0)
 				if (post > 0)
-					buff[pre++] = buff[size-post--]
+					data[pre++] = data[size-post--]
 				else
 					break
 		// backward
@@ -241,7 +256,7 @@
 			// visitor
 			while (index-- > 0)
 				if (pre > 0)
-					buff[size-(post++)-1] = buff[(pre--)-1]
+					data[size-(post++)-1] = data[(pre--)-1]
 				else
 					break
 
@@ -273,20 +288,33 @@
 	 * @param {number} length
 	 */
 	function find (index, value, length) {
-		var i = index|0
-		var x = length < 0 ? size : length|0
-
+		var pre = this.pre
+		var post = this.post
 		var size = this.size
-		var buff = this.buff
+		var data = this.data
 
-		if (value|0 > -1)
-			while (i < size && x-- > 0)
-				switch (buff[i++]) {
-					case value|0:
-						return i
-				}
-		else
-			return ++i
+		var i = index < 0 ? 0 : index|0
+		var needle = value|0
+		var haystack = length|0
+
+		// forward
+		if (haystack > 0)
+			while (i < size && haystack-- > 0) {
+				if (i === pre)
+					i = size-post
+
+				if (data[i++] === needle) 
+					return i
+			}
+		// backward
+		else 
+			while (i > 0 && haystack++ < 0) {
+				if (i === size-post)
+					i = pre
+
+				if (data[i--] === needle) 
+					return i
+			}
 
 		return -1
 	}
@@ -306,7 +334,7 @@
 			this.expand()
 
 		// push
-		switch (this.buff[this.pre++] = code) {
+		switch (this.data[this.pre++] = code) {
 			case 10:
 				this.line++
 				this.lines++
@@ -350,9 +378,8 @@
 	function insert (string) {
 		// more than one character
 		if (string.length > 0)
-			for (var i = 0, j = 0, l = string.length; i < l; i++)
+			for (var i = 0; i < string.length; i++)
 				this.push(string.charCodeAt(i))
-
 		// single character
 		else
 			this.push(string.charCodeAt(0))
@@ -375,20 +402,20 @@
 
 		var pre = this.pre
 		var post = this.post
-		var buff = this.buff
+		var data = this.data
 
 		// shift
 		if (value < 0)
 			while (index-- > 0)
 				if (pre > 0)
-					this.pop(code = buff[pre--])
+					this.pop(code = data[pre--])
 				else
 					break
 		// pop
 		else
 			while (index-- > 0)
 				if (post > 0)
-					this.pop(code = buff[post--])
+					this.pop(code = data[post--])
 				else
 					break
 
@@ -410,23 +437,23 @@
 		var pre = this.pre
 		var post = this.post
 		var size = this.size
-		var buff = this.buff
+		var data = this.data
 
-		var sizeX2 = (size+10)*2
-		var buffX2 = new Uint8Array(sizeX2)
+		var dble = (size+10)<<1
+		var next = new Uint8Array(dble)
 
 		// copy leading characters
 		for (var i = 0; i < pre; i++)
-			buffX2[i] = buff[i]
+			next[i] = data[i]
 
 		// copy tailing characters
 		for (var i = 0; i < post; i++)
-			buffX2[sizeX2-i-1] = buff[size-i-1]
+			next[dble-i-1] = data[size-i-1]
 
 		this.pre = pre
 		this.post = post
-		this.size = sizeX2
-		this.buff = buffX2
+		this.size = dble
+		this.data = next
 	}
 
 	/**
@@ -444,19 +471,19 @@
 		var pre = this.pre
 		var post = this.post
 		var size = this.size
-		var buff = this.buff
+		var data = this.data
 
 		// leading characters
 		if (pre > 0)
 			// visitor
 			while (index < pre)
-				output += this.fromCharCode(buff[index++])
+				output += this.fromCharCode(data[index++])
 
 		// tailing characters
 		if (post > 0 && (index = size-post) > 0)
 			// visitor
 			while (index < size)
-				output += this.fromCharCode(buff[index++])
+				output += this.fromCharCode(data[index++])
 
 		return output
 	}
@@ -476,15 +503,46 @@
 		var pre = this.pre
 		var post = this.post
 		var size = this.size
-		var buff = this.buff
+		var data = this.data
 
 		if (pre > 0)
-			output.set(buff.subarray(0, pre))
+			output.set(data.subarray(0, pre))
 		
 		if (post > 0)
-			output.set(buff.subarray(size-post))
+			output.set(data.subarray(size-post))
 
 		return output
+	}
+
+	/**
+	 * charCodeAt
+	 * 
+	 * @param {number} value
+	 * @return {number}
+	 */
+	function charCodeAt (value) {		
+		var pre = this.pre
+		var post = this.post
+		var size = this.size
+		var data = this.data
+		var index = value|0
+
+		if (pre === 0)
+			return data[(size-1-post)+index]
+		if (post === 0)
+			return index < pre ? data[index] : NaN
+
+		return data[(size-1-post-pre)+index]
+	}
+
+	/**
+	 * charAt
+	 * 
+	 * @param {number} value
+	 * @return {string}
+	 */
+	function charAt (value) {
+		return this.fromCharCode(this.charCodeAt(value))
 	}
 
 	/**
@@ -495,7 +553,7 @@
 	 * @return {*}
 	 */
 	function use (name, value) {
-		return this.shared.extensions[name] = value
+		return this.package[name] = value
 	}
 
 	/**
@@ -506,12 +564,10 @@
 	 */
 	function set (name, value) {
 		switch (name) {
-			case 'theme':
-				return this.theme = value || this.theme
-			case 'grammer':
-				return this.grammer = value || this.grammer
 			case 'syntax':
 				return this.syntax = value || this.syntax
+			case 'theme':
+				return this.theme = value || this.theme
 			case 'context':
 				return this.context = value || this.context
 		}
@@ -527,31 +583,6 @@
 	}
 
 	/**
-	 * clone
-	 * 
-	 * @param {number=} x
-	 * @param {number=} y
-	 * @param {number=} width
-	 * @param {number=} height
-	 * @return {Gap}
-	 */
-	function clone (x, y, width, height) {
-		var varient = new this.constructor(this.size, x, y, width, height)
-
-		varient.buff.set(this.buff)
-		varient.style.set(this.style)
-		varient.history.set(this.history)
-		varient.branch.set(this.branch)
-
-		varient.comment = this.commit
-		varient.syntax = this.syntax
-		varient.theme = this.theme
-		varient.tokenizer = this.tokenizer
-
-		return varient
-	}
-
-	/**
 	 * from
 	 *
 	 * @param {*} value
@@ -562,15 +593,21 @@
 
 		if (value === null || value === void 0)
 			return new Gap(0, 0, 0, 0, 0)
-		else if (value instanceof this)
-			return value.clone(value.x, value.y, value.width, value.height)
-		else
+		else if (value instanceof this) {
+			varient = new value.constructor(value.size, value.xaxis, value.yaxis, value.width, value.height)
+
+			varient.data.set(this.data)
+
+			varient.syntax = value.syntax
+			varient.theme = value.theme
+			varient.language = value.language
+
+			return varient
+		} else
 			switch (value.constructor) {
-				// @todo handle other data-types, i.e buffer, Uint8Array, Array, etc.
 				case String:
 					return varient = new Gap(value.length, 0, 0, 0, 0), varient.insert(value), varient
 			}
-
 	}
 
 	/**
@@ -611,8 +648,8 @@
 	 * @return {number}
 	 */
 	function peek (value) {
-		var x = value.x|0
-		var y = value.y|0
+		var x = value.xaxis|0
+		var y = value.yaxis|0
 		var i = 0
 		var lineHeight = y/this.lineHeight
 
@@ -621,7 +658,7 @@
 			i = y
 
 		// reduce column distance
-		while ((x -= this.context.measureText(this.fromCharCode(this.buff[i])).width) > 0)
+		while ((x -= this.context.measureText(this.fromCharCode(this.data[i])).width) > 0)
 			i++
 
 		return i
@@ -699,98 +736,83 @@
 
 	/**
 	 * javascriptGrammer Example
-	 *
-	 * @todo add unlimited lookbehind feature
 	 * 
-	 * @param {number} currentChar
-	 * @param {number} previousChar
-	 * @param {number} currentToken
-	 * @param {number} previousToken
-	 * @param {number} currentIndex
+	 * @param {content} content
+	 * @param {string} before
+	 * @param {number} context
+	 * @param {number} index
+	 * @param {number} line
 	 * @return {number}
 	 */
-	function javascriptGrammer (
-		currentChar, 
-		previousChar, 
-		currentToken, 
-		previousToken, 
-		currentIndex
-	) {
-		switch (currentChar) {
-			// quotes
-			case 34:
-			case 39:
-			case 96:
-				switch (this.scope[currentChar]) {
-					case 0:
-						switch(this.scope[currentChar]++) {
-							case 34: return this.string.single
-							case 39: return this.string.double
-							case 96: return this.string.single
-						}
+	function javascriptGrammer (content, before, context, index, line) {
+		var grammer = this.grammer
+
+		var keyword = grammer.keyword
+		var storage = grammer.storage
+		var string = grammer.string
+
+		switch (context) {
+			case string.template:
+				return content === '`' && before !== 92 ? keyword.other : context
+			default: 
+				switch (content) {
+					case 'var': return storage.type
+					case '\n': case '\t': case ' ': return keyword.other
+					case "'": return string.single
+					case '"': return string.double
+					case '`': return string.template
+				}
+		}
+
+		return context
+	}
+
+	/**
+	 * anchor
+	 *
+	 * @desc anchor the index of the first visible character
+	 * 
+	 * @return {number}
+	 */
+	function anchor () {
+		var pre = this.pre
+		var post = this.post
+		var size = this.size
+		var data = this.data
+
+		var index = this.index
+		var yaxis = this.yaxis|0
+		var xaxis = this.xaxis|0
+
+		// if the current y axis coordinates is less than
+		// the editors offset, the anchor must be anywhere
+		// before the current anchors index
+		// essentially we are moving from the last known
+		// index to a new index that represents the first character
+		// of the visible spectrum, this will
+		// normally happen in steps not longer than a few lines
+		// as far as the UI is concerned
+
+		// up
+		if (y < offset)
+			while (index-- > 0) {
+				if (index === post)
+					index = pre
+
+				if (data[index] === 10 && (--offset < y))
 					break
-				default:
-					return this.scope[currentChar]--, this.keyword.other
-				}
-				break
-			// operators
-			case 33:
-			case 40:
-			case 41:
-			case 43:
-			case 45:
-			case 46:
-			case 58:
-			case 62:
-			case 91:
-			case 93:
-			case 123:
-			case 125:
-				if (this.scope[34] + this.scope[39] + this.scope[96] === 0) {
-					return this.keyword.operator
-				}
-				break			
-			// *
-			case 42:
-				// comment(block)
-				switch (previousChar) {
-					case 47:
-						return this.comment.block
-				}
-				break
-			// /
-			case 47:
-				switch (previousChar) {
-					// /
-					case 47:
-						switch (currentToken) {
-							// comment(line)
-							case this.keyword.other:
-								return this.comment.line;						
-						}
-				}
-				break
-		}
+			}
+		// down
+		else
+			while (index++ < size) {
+				if (index === pre)
+					index = size-post
 
-		switch (currentToken) {
-			// terminate comment(line)
-			case this.comment.line:
-				if (currentChar === 10)
-				switch (currentChar) {
-					case 10:
-						return this.keyword.other
-				}
-				break
-			// terminate comment(block)
-			case this.comment.block:
-				switch (currentChar<<previousChar) {
-					case 48128:
-						return this.keyword.other
-				}
-				break
-		}
+				if (data[index] === 10 && (++offset > y))
+					break
+			}
 
-		return currentToken
+		return this.index = index
 	}
 
 	/**
@@ -805,218 +827,88 @@
 		var pre = this.pre
 		var post = this.post
 		var size = this.size
-		var buff = this.buff
-		var style = this.style
+		var data = this.data
 		var length = this.length
-
-		// viewport
-		var steps = this.lineHeight
-		var limit = this.height
-		var height = 0
 
 		// settings
 		var syntax = this.syntax
 		var theme = this.theme
-		var tokenizer = this.tokenizer
+		var language = this.language
 
-		// character
-		var head = 0	
-		var tail = 0
-
-		// tokens
-		var prev = 0
-		var next = 0
-		var token = style[this.i]
-
-		// shared
-		var shared = this.shared
-		
-		shared.scope.fill(0)
-
-		if (length > style.length)
-			(style = new Uint8Array((length+10)*2)).set(this.style)
-
-		for (var index = 0, caret = 0; index < length; index++) {
-			tail = head
-			head = buff[caret++]
-			
-			switch (head) {
-				case 10:
-					height += steps
-					// this is an optimizations, when we are > height of viewport
-					// we bail out, it's commented out because of the stress test
-					// if (height > limit)
-						// break visitor
-			}
-
-			next = 0//tokenizer.call(shared, head, tail, token, prev, index)
-			prev = token
-			style[index] = token = next
-
-			switch (caret) {
-				case pre:
-					caret = size-post
-			}
-		}
-
-		this.style = style
-
-		return index
-
-		// notes:
-		// 
-		// the tozenizer should consistantly at most take ~4ms
-		// the renderer will pick up from here and start
-		// drawing the to the screen from bottom up uptil it reaches the hight of the screen
-		// this should consistantly take at most ~4ms
-		// which means we have 8ms more left to do any other work
-		// 
-		// the render piple line would resemble
-		// 
-		// X -> tokenize() -> render()
-		// 
-		// where X is any operation that changes the state of what is displayed on the screen
-		// for example
-		// 
-		// 1. event(scroll) -> X
-		// 2. event(keydown) -> insert()/remove() -> X
-		// 
-		// It look like alot of work since even the smallest change(scrolling) causes a re-render
-		// but since we can archive the tokenize() -> render() phase in < 6ms
-		// we have alot of time(10ms) on our hands for off-screen ops before this
-	}
-
-	/**
-	 * render
-	 *
-	 * @desc render visible viewport
-	 *
-	 * @todo use new defined grammer for new render
-	 * 
-	 * @return {void}
-	 */
-	function render () {
-		var context = this.context
-
-		if (context === null)
-			return
-
-		// units
-		var lineHeight = this.lineHeight
-		var fontWidth = this.fontWidth
-		var tabSize = this.tabSize
-
-		// data
-		var buff = this.buff
-		var pre = this.pre
-		var post = this.post
-		var size = this.size
-		var length = this.length
-
-		// stats
-		var line = this.line
-		var lines = this.lines
-		var column = this.column
+		// state
+		var state = this.state
 
 		// viewport
-		var height = this.height|0
-		var width = this.width|0
+		var xaxis = this.xaxis
+		var yaxis = this.yaxis
+		var limit = this.height
+		var step = this.lineHeight
+		var height = 0
 
-		// scroll
-		var i = 0
-		var k = 0
-		var x = this.x|0
-		var y = this.y|0
-		var z = 0
+		// offset
+		var offset = this.offset
+		var index = xaxis|0 === offset|0 ? this.index : this.anchor()
 
-		// dimensions
-		var w = 0
-		var h = 0
-
-		// meta
-		var offset = 0
+		// setup
+		var content = ''
 		var code = 0
-		var index = 0
+		var line = (xaxis/step)|0
+		var token = state[line-1]|0
+		var before = pre > 0 ? data[pre] : data[size-post]
 
-		// memory
-		var state = this.state
-		var token = state.token
-		var chars = ''
 
-		return;
+		/* 
+			@todo handle characters out of view on the x axis
+			the current model is as follows
 
-		// var start = performance.now()
+			  _____
+			| ..... | tokenize and rendered
+			| ..... | 
+			| ----- | -----> draw distance
+			|   x   | 
+			|   x   | beyond the horizon
+			 -------
 
-		while (index < length && i < size) { //  && h <= height
-			code = buff[i++]
-				
-			if ((code < 91 && code > 64) || (code < 123 && code > 96)) {
-				chars += this.fromCharCode(code)
-			} else {
-				// if (chars.length > 0) {
-			// 		token[index++] = chars
-			// 		chars = ''
-				// }
+			 essentially a on-demand tokenizer + render
 
-				if (code === 10) {
-					if (k === 0) {
-						z = h >= y ? (h = 0, k = 1, z = z > 0 ? z + 1 : z) : index
-					}
-					h += lineHeight
-				}
+		*/
 
-			// 	token[index++] = this.fromCharCode(code)
-			}
-
-			if (i === pre) {
+		for (var i = index; i < size; i++) {
+			if (i === pre)
 				i = size-post
-			}
-		}
 
-		// console.log(z, i, this.pre)
+			code = data[i]
 
-		return;
+			switch (code < 65 || code > 122 || (code > 90 && code < 97)) {
+				case false: 
+					content += this.fromCharCode(code)
 
-		// canvas
-		context.canvas.width = width
-		context.canvas.height = height
-		context.font = this.fontSize+'px '+this.fontFamily
-		context.textBaseline = 'top'
-
-		length = index
-		i = z
-		h = 0
-		w = 0
-
-		while (i < length) {
-			switch (chars = token[i++]) {
-				case ' ':
-				case '\t':
-					w += fontWidth
-					break
-				case '\n':
-					h += lineHeight
-					w = 0
-					break
-				default:
-					// non-viewport
-					if (w > width)
+					if (i !== size-1)
 						break
+				case true:
+					if (content.length > 0)
+						content = (token = syntax.call(this, content, before, token, i, line), '')
 
-					switch (tokenize.call(state, index)) {
-						case 0:
-							break
-					}
+					token = syntax.call(this, this.fromCharCode(code), before, token, i, line)
+					before = code
 
-					context.fillText(chars, w, h)
-					w += context.measureText(chars).width|0
+					if (code === 10 || i === size-1)
+						if ((state[line] = token, line++, height += step) > limit)
+							size = i
 			}
 		}
-
-		var end = performance.now()
-
-		console.log((end-start), 'is the time it takes to tokenize + render ' +  this.lines+' lines')
 	}
+
+
+
+
+
+
+
+	function render () {
+
+	}
+
 
 	;(function demo(){
 		var i = 0
@@ -1034,7 +926,7 @@
 			// forward
 			case 0:
 				if (this.post > 0)
-					switch (this.buff[this.pre++] = this.buff[this.size-this.post--]) {
+					switch (this.data[this.pre++] = this.data[this.size-this.post--]) {
 						case 10:
 							this.line++
 					}
@@ -1042,7 +934,7 @@
 			// backward
 			case 1:
 				if (this.pre > 0)
-					switch (this.buff[this.size-(this.post++)-1] = this.buff[(this.pre--)-1]) {
+					switch (this.data[this.size-(this.post++)-1] = this.data[(this.pre--)-1]) {
 						case 10:
 							this.line--
 					}
@@ -1055,10 +947,17 @@
 		input += template+'\n';
 	}
 		function body () {
-			heap.insert(input)
+			console.log('')
+			console.log('note: this is a stress test')
+			console.log('')
+
+			begin = performance.now()
+			heap.insert(input.trim())
 
 			// insert(document): cold
 			console.log('insert(cold):', performance.now()-begin, 'ms')
+
+			console.log('')
 
 			// move(document): cold
 			begin = performance.now()
@@ -1066,21 +965,37 @@
 			console.log('move(cold):', performance.now()-begin, 'ms')
 
 			// warmup
-			heap.move(-(heap.pre+heap.post))
 			heap.move((heap.pre+heap.post))
 			heap.move(-(heap.pre+heap.post))
 			heap.move((heap.pre+heap.post))
 			heap.move(-(heap.pre+heap.post))
+			heap.move((heap.pre+heap.post))
 
 			// move(document): warm
 			begin = performance.now()
 			heap.move(-(heap.pre+heap.post))
 			console.log('move(warm):', performance.now()-begin, 'ms')
 
-
 			console.log('')
-						console.log('note: above operations traverse the whole document')
-						console.log('')
+
+			// search(document): warm
+			begin = performance.now()
+			heap.find(0, -1, heap.size)
+			console.log('search(cold):', performance.now()-begin, 'ms')
+
+			// warmup
+			heap.find(0, -1, heap.size)
+			heap.find(0, -1, heap.size)
+			heap.find(0, -1, heap.size)
+			heap.find(0, -1, heap.size)
+			heap.find(0, -1, heap.size)
+
+			begin = performance.now()
+			heap.find(0, -1, heap.size)
+			console.log('search(warm):', performance.now()-begin, 'ms')
+			
+			console.log('')
+
 			// tokenize: cold
 			begin = performance.now()
 			heap.tokenize()
@@ -1122,7 +1037,7 @@
 			console.log(`document stats: ${heap.length} chars, ${heap.lines} lines, ~${heap.length*1e-6} MB`)
 		}
 
-		var heap = new Gap(1, 0, 0, window.innerWidth, window.innerHeight)
+		var heap = new Gap(0, 0, 0, window.innerWidth, window.innerHeight)
 
 		// var heap = new Gap(input.length, 0, (13*1.5), window.innerWidth, window.innerHeight)
 		// var heap = new Gap(input.length, 0, ((13*1.5)*2), window.innerWidth, window.innerHeight)
@@ -1131,20 +1046,28 @@
 		// var heap = new Gap(input.length, 0, ((13*1.5)*5), window.innerWidth, window.innerHeight)
 
 		heap.set('context', context)
-		heap.set('syntax', 'js')
-		heap.set('grammer', javascriptGrammer)
+		heap.set('language', 'js')
+		heap.set('syntax', javascriptGrammer)
 
 		heap.use('default', {
 			keyword: ['#000'],
 			comment: ['gray']
 		})
 
-		begin = performance.now()
+		console.log(heap)
 
-		console.log('note: this is a stress test')
-		console.log('')
-
-		body()
+		// fetch('.log/test.ts').then((data) => {
+		// fetch('.log/checker.ts').then((data) => {
+		// fetch('.log/sqlite3.c').then((data) => {
+		var file = 'https://raw.githubusercontent.com/Microsoft/TypeScript/master/src/compiler/checker.ts'
+		console.log('Fetching file: GET '+ file)
+		console.log('...')
+		fetch('https://raw.githubusercontent.com/Microsoft/TypeScript/master/src/compiler/checker.ts').then((data) => {
+			data.text().then((v) => {
+				input = v
+				body()
+			})
+		})
 
 		// setTimeout(function loop () {
 			// heap.y+=2
@@ -1154,3 +1077,4 @@
 		// heap.addEventListener('wheel')
 	})()
 })();
+
