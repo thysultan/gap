@@ -62,6 +62,18 @@
 	 *
 	 * ...
 	 */
+	
+	var grammer = {
+		noop: 0,
+		comment: {other: 10, line: 11, block: 12},
+		invalid: {other: 20, illegal: 21, deprecated: 22, syntax: 23},
+		string: {other: 30, single: 31, double: 32, template: 33, triple: 34, unquoted: 35, interpolated: 36, regex: 37},
+		constant: {other: 40, numeric: 41, escape: 42, language: 43},
+		variable: {other: 50, parameter: 51, special: 52},
+		support: {other: 60, function: 61, class: 62, type: 63, constant: 64, variable: 65},
+		storage: {other: 70, type: 71, modifier: 72},
+		keyword: {other: 80, control: 81, operator: 82},
+	};
 
 	/**
 	 * Gap
@@ -97,8 +109,8 @@
 		this.context = null
 		
 		// viewport
-		this.xaxis = x|0
-		this.yaxis = y|0
+		this.x = x|0
+		this.y = y|0
 
 		// offset
 		this.index = 0
@@ -112,7 +124,7 @@
 			
 		// syntax
 		this.syntax = noop
-		this.theme = 'default'
+		this.theme = 'default-theme'
 		this.state = [0]
 	
 		/* 
@@ -162,7 +174,7 @@
 		// static
 		fontWidth: Math.round(13/1.666),
 		fontSize: 13,
-		lineHeight: 13*1.5,
+		lineHeight: (13*1.5)|0,
 		tabSize: 2,
 		fontFamily: 'monospace',
 
@@ -199,23 +211,29 @@
 		anchor: anchor,
 
 		// grammer
-		grammer: {
-			noop: 0,
-			comment: {other: 10, line: 11, block: 12},
-			invalid: {other: 20, illegal: 21, deprecated: 22, syntax: 23},
-			string: {other: 30, single: 31, double: 32, template: 33, triple: 34, unquoted: 35, interpolated: 36, regex: 37},
-			constant: {other: 40, numeric: 41, escape: 42, language: 43},
-			variable: {other: 50, parameter: 51, special: 52},
-			support: {other: 60, function: 61, class: 62, type: 63, constant: 64, variable: 65},
-			storage: {other: 70, type: 71, modifier: 72},
-			keyword: {other: 80, control: 81, operator: 82},
-		},
-
-		// temporary memory
-		scope: new Uint8Array(256),
+		grammer: grammer,
+		scope: 0,
 
 		// extensions
-		package: Object.create(null)
+		package: {
+			'default-theme': theme({
+				comment: {
+					other: 'gray'
+				},
+				string: {
+					other: 'green',
+					double: 'green'
+				},
+				keyword: {
+					other: 'black',
+					operator: 'red'
+				},
+				constant: {
+					other: 'purple',
+					numeric: 'blue'
+				}
+			})
+		}
 	}
 
 	/**
@@ -224,6 +242,32 @@
 	 * @type {function}
 	 */
 	Gap.from = from
+	Gap.theme = theme
+
+	/**
+	 * theme
+	 *
+	 * @desc creates a theme
+	 * 
+	 * @param {Object} style
+	 * @return {Array<string>}
+	 */
+	function theme (style) {
+		var output = []
+
+		for (var key in style) {
+			if (typeof grammer[key] !== 'object')
+				continue
+
+			var props = style[key]
+
+			for (var name in props) {
+				output[grammer[key][name]] = props[name]  
+			}
+		}
+
+		return output
+	}
 
 	/**
 	 * move
@@ -563,14 +607,18 @@
 	 * @param {*} value
 	 */
 	function set (name, value) {
-		switch (name) {
-			case 'syntax':
-				return this.syntax = value || this.syntax
-			case 'theme':
-				return this.theme = value || this.theme
-			case 'context':
-				return this.context = value || this.context
-		}
+		if (typeof name === 'object')
+			for (var key in name)
+				this.set(key, name[key])
+		else
+			switch (name) {
+				case 'syntax':
+					return this.syntax = value || this.syntax
+				case 'theme':
+					return this.theme = value || this.theme
+				case 'context':
+					return this.context = value || this.context
+			}
 	}
 
 	/**
@@ -594,7 +642,7 @@
 		if (value === null || value === void 0)
 			return new Gap(0, 0, 0, 0, 0)
 		else if (value instanceof this) {
-			varient = new value.constructor(value.size, value.xaxis, value.yaxis, value.width, value.height)
+			varient = new value.constructor(value.size, value.x, value.y, value.width, value.height)
 
 			varient.data.set(this.data)
 
@@ -648,8 +696,8 @@
 	 * @return {number}
 	 */
 	function peek (value) {
-		var x = value.xaxis|0
-		var y = value.yaxis|0
+		var x = value.x|0
+		var y = value.y|0
 		var i = 0
 		var lineHeight = y/this.lineHeight
 
@@ -740,28 +788,59 @@
 	 * @param {content} content
 	 * @param {string} before
 	 * @param {number} context
+	 * @param {number} type
 	 * @param {number} index
 	 * @param {number} line
 	 * @return {number}
 	 */
-	function javascriptGrammer (content, before, context, index, line) {
+	function javascriptGrammer (content, before, context, type, index, line) {
 		var grammer = this.grammer
+		var scope = this.scope
 
 		var keyword = grammer.keyword
 		var storage = grammer.storage
 		var string = grammer.string
+		var constant = grammer.constant
 
-		switch (context) {
-			case string.template:
-				return content === '`' && before !== 92 ? keyword.other : context
-			default: 
-				switch (content) {
-					case 'var': return storage.type
-					case '\n': case '\t': case ' ': return keyword.other
-					case "'": return string.single
-					case '"': return string.double
-					case '`': return string.template
-				}
+		if (type > -1) {
+			switch (type) {
+				case 39:
+				case 34:
+				case 96:
+					switch (scope) {
+						case type:
+							if (before !== 92)
+								this.scope = 0
+							break
+						default:
+								this.scope = type
+					}
+					break
+				case 48:
+				case 49:
+				case 50:
+				case 51:
+				case 52:
+				case 53:
+				case 54:
+				case 55:
+				case 56:
+				case 57:
+					if (context >= keyword.other)
+						return constant.numeric
+			}
+
+			if (scope === 0)
+				return keyword.operator
+		}
+
+		switch (scope) {
+			case 39:
+			case 34:
+			case 96:
+				return string.other
+			default:
+				return keyword.other
 		}
 
 		return context
@@ -781,8 +860,7 @@
 		var data = this.data
 
 		var index = this.index
-		var yaxis = this.yaxis|0
-		var xaxis = this.xaxis|0
+		var y = this.y|0
 
 		// if the current y axis coordinates is less than
 		// the editors offset, the anchor must be anywhere
@@ -803,7 +881,9 @@
 					break
 			}
 		// down
-		else
+		else if (y > offset+this.lineHeight)
+			// y = 12
+			// offset = 0
 			while (index++ < size) {
 				if (index === pre)
 					index = size-post
@@ -839,22 +919,37 @@
 		var state = this.state
 
 		// viewport
-		var xaxis = this.xaxis
-		var yaxis = this.yaxis
+		var x = this.x
+		var y = this.y
 		var limit = this.height
-		var step = this.lineHeight
+		var lineHeight = this.lineHeight
+		var tabSize = this.tabSize
+		var fontWidth = this.fontWidth
 		var height = 0
+		var width = 0 
 
 		// offset
 		var offset = this.offset
-		var index = xaxis|0 === offset|0 ? this.index : this.anchor()
+		var index = x|0 === offset|0 ? this.index : this.anchor()
 
 		// setup
 		var content = ''
 		var code = 0
-		var line = (xaxis/step)|0
+		var line = (x/lineHeight)|0
 		var token = state[line-1]|0
 		var before = pre > 0 ? data[pre] : data[size-post]
+		var eof = false
+
+		this.scope = ''
+
+		// context
+		var context = this.context
+
+		context.canvas.width = this.width
+		context.canvas.height = this.height
+
+		context.textBaseline = 'top'
+		context.font = this.fontSize + 'px ' + this.fontFamily
 
 
 		/* 
@@ -878,35 +973,58 @@
 				i = size-post
 
 			code = data[i]
+			eof = i === size-1
 
 			switch (code < 65 || code > 122 || (code > 90 && code < 97)) {
 				case false: 
 					content += this.fromCharCode(code)
 
-					if (i !== size-1)
+					if (eof === false)
 						break
 				case true:
-					if (content.length > 0)
-						content = (token = syntax.call(this, content, before, token, i, line), '')
+					if (content.length > 0) {
+						token = syntax.call(this, content, before, token, -1, i, line)
+						width += this.render(context, content, token, x, y, width, height)
+					}
 
-					token = syntax.call(this, this.fromCharCode(code), before, token, i, line)
+					switch (code) {
+						case 9:
+							width += fontWidth*tabSize
+							break
+						case 10:
+							width = 0
+							break
+						default:
+							content = this.fromCharCode(code)
+							token = syntax.call(this, content, before, token, code, i, line)
+							width += this.render(context, content, token, x, y, width, height)
+					}
+
 					before = code
+					content = ''
 
-					if (code === 10 || i === size-1)
-						if ((state[line] = token, line++, height += step) > limit)
-							0// size = i
+					if (code === 10 || eof === true)
+						if ((state[line] = token, line++, height += lineHeight) > limit)
+							size = i
 			}
 		}
 	}
 
+	var test = `${
+		class Foo {
+			render () {
+				return ''
+			}
+		}
+	}`
 
+	function render (context, content, token, x, y, width, height) {
+		// console.log(token, content, this.package[this.theme][token])
+		
+		context.fillStyle = this.package[this.theme][token]
+		context.fillText(content, width, height)
 
-
-
-
-
-	function render () {
-
+		return Math.ceil(context.measureText(content).width)
 	}
 
 
@@ -996,30 +1114,6 @@
 			
 			console.log('')
 
-			// tokenize: cold
-			begin = performance.now()
-			heap.tokenize()
-			console.log('tokenize(cold):', performance.now()-begin, 'ms')
-
-			// warmup
-			heap.tokenize()
-			heap.tokenize()
-			heap.tokenize()
-			heap.tokenize()
-			heap.tokenize()
-
-			// tokenize: warm
-			begin = performance.now()
-			heap.tokenize()
-			console.log('tokenize(warm):', performance.now()-begin, 'ms')
-
-			console.log('')
-
-			// render
-			// begin = performance.now()
-			// heap.render()
-			// console.log('render:', performance.now()-begin, 'ms')
-
 			// save the whole document
 			begin = performance.now();
 			var output = heap.toString();
@@ -1032,6 +1126,31 @@
 
 			console.log('')
 			console.log('note: all the above operate on the entire document\nwith no specific viewport optimization.')
+			console.log('')
+
+			// tokenize: cold
+			begin = performance.now()
+			heap.tokenize()
+			console.log('tokenize+render(cold):', performance.now()-begin, 'ms')
+
+			// warmup
+			heap.tokenize()
+			heap.tokenize()
+			heap.tokenize()
+			heap.tokenize()
+			heap.tokenize()
+
+			// tokenize: warm
+			begin = performance.now()
+			heap.tokenize()
+			console.log('tokenize+render(warm):', performance.now()-begin, 'ms')
+
+			console.log('')
+
+			// render
+			// begin = performance.now()
+			// heap.render()
+			// console.log('render:', performance.now()-begin, 'ms')
 
 			console.log('')
 			console.log(`document stats: ${heap.length} chars, ${heap.lines} lines, ~${heap.length*1e-6} MB`)
@@ -1039,15 +1158,14 @@
 
 		var heap = new Gap(0, 0, 0, window.innerWidth, window.innerHeight)
 
-		// var heap = new Gap(input.length, 0, (13*1.5), window.innerWidth, window.innerHeight)
-		// var heap = new Gap(input.length, 0, ((13*1.5)*2), window.innerWidth, window.innerHeight)
-		// var heap = new Gap(input.length, 0, ((13*1.5)*3), window.innerWidth, window.innerHeight)
-		// var heap = new Gap(input.length, 0, ((13*1.5)*4), window.innerWidth, window.innerHeight)
-		// var heap = new Gap(input.length, 0, ((13*1.5)*5), window.innerWidth, window.innerHeight)
-
-		heap.set('context', context)
-		heap.set('language', 'js')
-		heap.set('syntax', javascriptGrammer)
+		heap.set({
+			context: context,
+			language: 'js',
+			syntax: javascriptGrammer
+		})
+		// heap.set('context', context)
+		// heap.set('language', 'js')
+		// heap.set('syntax', javascriptGrammer)
 
 		heap.use('default', {
 			keyword: ['#000'],
@@ -1056,25 +1174,20 @@
 
 		console.log(heap)
 
-		// fetch('.log/test.ts').then((data) => {
-		// fetch('.log/checker.ts').then((data) => {
-		// fetch('.log/sqlite3.c').then((data) => {
-		var file = 'https://raw.githubusercontent.com/Microsoft/TypeScript/master/src/compiler/checker.ts'
+		// var file = '.log/test.ts'
+		var file = '.log/checker.ts'
+		// var file = '.log/sqlite3.c'
+		// var file = 'https://raw.githubusercontent.com/Microsoft/TypeScript/master/src/compiler/checker.ts'
+
 		console.log('Fetching file: GET '+ file)
 		console.log('...')
-		fetch('https://raw.githubusercontent.com/Microsoft/TypeScript/master/src/compiler/checker.ts').then((data) => {
+
+		fetch(file).then((data) => {
 			data.text().then((v) => {
 				input = v
 				body()
 			})
 		})
-
-		// setTimeout(function loop () {
-			// heap.y+=2
-			// heap.render()
-			// setTimeout(loop, 1000)
-		// }, 500)
-		// heap.addEventListener('wheel')
 	})()
 })();
 
