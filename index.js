@@ -850,7 +850,7 @@
 	 * anchor
 	 *
 	 * @desc anchor the index of the first visible character
-	 * 
+	 *
 	 * @return {number}
 	 */
 	function anchor () {
@@ -859,40 +859,34 @@
 		var size = this.size
 		var data = this.data
 
+		var y = this.y
 		var index = this.index
-		var y = this.y|0
-
-		// if the current y axis coordinates is less than
-		// the editors offset, the anchor must be anywhere
-		// before the current anchors index
-		// essentially we are moving from the last known
-		// index to a new index that represents the first character
-		// of the visible spectrum, this will
-		// normally happen in steps not longer than a few lines
-		// as far as the UI is concerned
+		var offset = this.offset
+		var lineHeight = this.lineHeight
 
 		// up
 		if (y < offset)
-			while (index-- > 0) {
+			while (index > 0) {
 				if (index === post)
 					index = pre
 
-				if (data[index] === 10 && (--offset < y))
+				if (data[index--] === 10 && ((offset -= lineHeight) + lineHeight < y))
 					break
 			}
 		// down
-		else if (y > offset+this.lineHeight)
-			// y = 12
-			// offset = 0
-			while (index++ < size) {
+		else if (y >= offset+lineHeight)
+			while (index < size) {
 				if (index === pre)
 					index = size-post
 
-				if (data[index] === 10 && (++offset > y))
+				if (data[index++] === 10 && (offset += lineHeight) + lineHeight > y)
 					break
 			}
 
-		return this.index = index
+		this.offset = offset
+		this.index = index
+		
+		return index
 	}
 
 	/**
@@ -915,32 +909,28 @@
 		var theme = this.theme
 		var language = this.language
 
-		// state
-		var state = this.state
-
 		// viewport
-		var x = this.x
-		var y = this.y
-		var limit = this.height
+		var index = this.y === this.offset ? this.index : this.anchor()
+		var x = this.x|0
+		var y = this.y|0
+		var offset = this.offset|0
 		var lineHeight = this.lineHeight
 		var tabSize = this.tabSize
 		var fontWidth = this.fontWidth
-		var height = 0
-		var width = 0 
-
-		// offset
-		var offset = this.offset
-		var index = x|0 === offset|0 ? this.index : this.anchor()
+		var height = this.height
+		var width = this.width
+		var delta = offset === 0 ? y : y%offset
+		var vertical = 0 - delta
+		var horizontal = 0
 
 		// setup
 		var content = ''
 		var code = 0
-		var line = (x/lineHeight)|0
-		var token = state[line-1]|0
-		var before = pre > 0 ? data[pre] : data[size-post]
-		var eof = false
+		var eof = size-1
 
-		this.scope = ''
+		// var line = (x/lineHeight)|0
+		// var token = state[line-1]|0
+		// var before = pre > 0 ? data[pre] : data[size-post]
 
 		// context
 		var context = this.context
@@ -951,80 +941,36 @@
 		context.textBaseline = 'top'
 		context.font = this.fontSize + 'px ' + this.fontFamily
 
-
-		/* 
-			@todo handle characters out of view on the x axis
-			the current model is as follows
-
-			  _____
-			| ..... | tokenize and rendered
-			| ..... | 
-			| ----- | -----> draw distance
-			|   x   | 
-			|   x   | beyond the horizon
-			 -------
-
-			 essentially a on-demand tokenizer + render
-
-		*/
-
 		for (var i = index; i < size; i++) {
-			if (i === pre)
-				i = size-post
+			switch (i) {
+				case pre:
+					code = data[i = size-post]
+					break
+				case eof:
+					if (code !== 10)
+						code = (content += this.fromCharCode(data[i]), 10)
+					break
+				default:
+					code = data[i]
+			}
 
-			code = data[i]
-			eof = i === size-1
-
-			switch (code < 65 || code > 122 || (code > 90 && code < 97)) {
-				case false: 
-					content += this.fromCharCode(code)
-
-					if (eof === false)
-						break
-				case true:
-					if (content.length > 0) {
-						token = syntax.call(this, content, before, token, -1, i, line)
-						width += this.render(context, content, token, x, y, width, height)
-					}
-
-					switch (code) {
-						case 9:
-							width += fontWidth*tabSize
-							break
-						case 10:
-							width = 0
-							break
-						default:
-							content = this.fromCharCode(code)
-							token = syntax.call(this, content, before, token, code, i, line)
-							width += this.render(context, content, token, x, y, width, height)
-					}
-
-					before = code
+			switch (code) {
+				case 13:
+					break
+				case 10:
+					context.fillText(content, horizontal, vertical)
 					content = ''
 
-					if (code === 10 || eof === true)
-						if ((state[line] = token, line++, height += lineHeight) > limit)
-							size = i
+					if ((code = -1, vertical += lineHeight) > height)
+						size = i
+					continue
+				default:
+					content += this.fromCharCode(code)
 			}
 		}
 	}
 
-	var test = `${
-		class Foo {
-			render () {
-				return ''
-			}
-		}
-	}`
-
 	function render (context, content, token, x, y, width, height) {
-		// console.log(token, content, this.package[this.theme][token])
-		
-		context.fillStyle = this.package[this.theme][token]
-		context.fillText(content, width, height)
-
-		return Math.ceil(context.measureText(content).width)
 	}
 
 
@@ -1129,16 +1075,16 @@
 			console.log('')
 
 			// tokenize: cold
-			begin = performance.now()
-			heap.tokenize()
-			console.log('tokenize+render(cold):', performance.now()-begin, 'ms')
+			// begin = performance.now()
+			// heap.tokenize()
+			// console.log('tokenize+render(cold):', performance.now()-begin, 'ms')
 
-			// warmup
-			heap.tokenize()
-			heap.tokenize()
-			heap.tokenize()
-			heap.tokenize()
-			heap.tokenize()
+			// // warmup
+			// heap.tokenize()
+			// heap.tokenize()
+			// heap.tokenize()
+			// heap.tokenize()
+			// heap.tokenize()
 
 			// tokenize: warm
 			begin = performance.now()
@@ -1154,6 +1100,8 @@
 
 			console.log('')
 			console.log(`document stats: ${heap.length} chars, ${heap.lines} lines, ~${heap.length*1e-6} MB`)
+			console.log('')
+			console.log('note: type `speed++`, to increase the scroll speed and look at the fps meter in chrome')
 		}
 
 		var heap = new Gap(0, 0, 0, window.innerWidth, window.innerHeight)
@@ -1172,12 +1120,14 @@
 			comment: ['gray']
 		})
 
+		window.speed = 1
+
 		console.log(heap)
 
 		// var file = '.log/test.ts'
-		var file = '.log/checker.ts'
+		// var file = '.log/checker.ts'
 		// var file = '.log/sqlite3.c'
-		// var file = 'https://raw.githubusercontent.com/Microsoft/TypeScript/master/src/compiler/checker.ts'
+		var file = 'https://raw.githubusercontent.com/Microsoft/TypeScript/master/src/compiler/checker.ts'
 
 		console.log('Fetching file: GET '+ file)
 		console.log('...')
@@ -1186,6 +1136,12 @@
 			data.text().then((v) => {
 				input = v
 				body()
+
+				requestAnimationFrame(function loop () {
+					heap.y += speed
+					heap.tokenize()
+					requestAnimationFrame(loop)
+				})
 			})
 		})
 	})()
