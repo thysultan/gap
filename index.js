@@ -75,12 +75,23 @@
 		keyword: {other: 80, control: 81, operator: 82},
 	};
 
+	function Node (prev, next) {
+		this.token = [0]
+		this.prev = prev
+		this.next = next
+		this.length = 0
+	}
+
 	/**
 	 * Editor
 	 * 
 	 * @param {number} size
+	 * @param {number} x
+	 * @param {number} y
+	 * @param {number} width
+	 * @param {number} height
 	 */
-	function Editor (size) {
+	function Editor (size, x, y, width, height) {
 		// gap
 		this.pre = 0
 		this.post = 0
@@ -90,13 +101,7 @@
 		this.data = new Uint32Array(this.size)
 
 		// meta
-		this.head = {
-			token: [0], 
-			prev: null, 
-			next: null, 
-			length: 0
-		}
-
+		this.head = {token: [0], prev: null, next: null, length: 0}
 		this.tail = this.head
 		this.node = this.head
 		this.node.next = this.node
@@ -108,6 +113,14 @@
 		this.column = 1
 		this.index = 0
 		this.length = 0
+
+		this.caret = {x: 0, y: 0}
+		this.x = x|0
+		this.y = y|0
+		this.width = width|0
+		this.height = height|0
+		this.canvas = null
+		this.context = null
 	}
 
 	/**
@@ -130,13 +143,8 @@
 
 			switch (this.data[(this.length++, this.node.length++, this.pre++)] = value) {
 				case 10:
-					this.node = this.node.next = this.node.next.prev = {
-						token: [0], 
-						prev: this.node, 
-						next: this.node.next, 
-						length: 0
-					}
-
+					this.node = {token: [0], prev: this.node, next: this.node.next, length: 0}
+					this.node.next = this.node.next.prev = this.node
 					this.index = this.pre
 					this.line++
 					this.lines++
@@ -255,8 +263,8 @@
 		 * @return {void}
 		 */
 		move: function move (x, y) {
-			var xlen = x|0 < 0 ? ~x+1 : x|0
-			var ylen = y|0 < 0 ? ~y+1 : y|0
+			var xlen = x < 0 ? ~x+1 : x|0
+			var ylen = y < 0 ? ~y+1 : y|0
 
 			while (xlen-- > 0) {
 				x < 0 ? this.backward() : this.forward()
@@ -446,14 +454,6 @@
 			return this.fromCharCode(this.charCodeAt(value))
 		},
 		/**
-		 * noop
-		 * 
-		 * @return {number}
-		 */
-		noop: function noop () {
-			return 0
-		},
-		/**
 		 * tokenize
 		 *
 		 * @return {void}
@@ -471,22 +471,16 @@
 			var index = 0
 			var hash = 0
 			var code = 0
-			var eof = size-1
 			var type = 0
-			var state = 0
 			var length = 0
+			var eof = size-1
 
 			// meta
 			var head = this.head
 			var node = this.node
-			var prev = node.prev
+			var state = node.state
 			var token = node.token
 			var keys = []
-
-			if (prev !== this.head) {
-				type = prev[prev.length-1]|0
-				state = token[token.length-1]|0
-			}
 
 			for (var i = this.index; i < size; i++) {
 				code = data[i === pre ? (i = size-post) : i]
@@ -502,20 +496,21 @@
 					keys[index++] = code
 
 					if (code === 10 || i === eof) {
-						length = index
-
-						for (index = 0; index < length; index++) {
+						for (length = index, index = 0; index < length; index++) {
 							type = token[index] = this.syntax(keys, type, keys[index], index)
 						}
 
-						// this short circutes when an update phase reaches a matching state
-						if (type === state || i === eof) {
+						if (token.length > index) {
+							token.length = index
+						}
+
+						if (type === state) {
 							break
 						}
 
 						node = node.next
 						token = node.token
-						state = token[token.length-1]|0
+						state = node.state
 						index = 0
 						keys = []
 					}
@@ -530,11 +525,12 @@
 		 * @return {void}
 		 */
 		render: function render () {
-			context.canvas.width = canvasWidth
-			context.canvas.height = canvasHeight
-
-			context.font = this.fontSize + 'px ' + this.fontFamily
-			context.textBaseline = 'top'
+			if (this.context === null) {
+				return
+			} else {
+				this.context.font = this.fontSize + 'px ' + this.fontFamily
+				this.context.textBaseline = 'top'
+			}
 
 			// data
 			var pre = this.pre
@@ -550,55 +546,61 @@
 			var text = ''
 			var code = 0
 			var eof = size-1
-			var type = 0
 			var y = 0
 			var x = 0
-
-			// meta
 			var node = this.node
 			var token = node.token
+			var caret = this.caret
 
 			for (var i = 0; i < size; i++) {
-				code = data[i === pre ? (i = size-post) : i]
+				if (i !== pre) {
+					code = data[i]
+				} else {
+					i = (size-post) + (code = -1)
+				}
 
 				if (i === eof || code < 65 || code > 122 || (code > 90 && code < 97)) {
 					if (text.length > 0) {
-						type = token[index++]
-						context.fillText(text, x, y)
-						x += context.measureText(text).width
+						x += this.fillText(text, x, y, token[index++])
+						text = ''
 					}
-
+					
 					if (code === 10) {
 						if ((y += lineHeight) > canvasHeight) {
 							break
+						} else {
+							token = (index = 0, x = 0, node = node.next).token
 						}
-
-						node = node.next
-						token = node.token
-						index = 0
-						x = 0
 					} else {
 						switch (code) {
+							case -1:
+								context.fillRect(x, y, 1, lineHeight);
+								caret.x = x
+								caret.y = y
+								break
 							case 9:
 								x += tabSize*fontWidth
 								break
 							case 13:
 								break
 							default:
-								type = token[index++]
-								context.fillText(text = this.fromCharCode(code), x, y)
-								x += context.measureText(text).width
+								x += this.fillText(this.fromCharCode(code), x, y, token[index])
 						}
+						index++
 					}
-
-					index++
-					text = ''
 				} else {
 					text += this.fromCharCode(code)
 				}
 			}
 		},
-
+		fillText: function fillText (text, x, y, token) {
+			this.context.fillText(text, x, y)
+			return this.context.measureText(text).width
+		},
+		clearRect: function clearRect () {
+			this.canvas.width = this.width
+			this.canvas.height = this.height
+		},
 		/**
 		 * set
 		 * 
@@ -637,29 +639,25 @@
 		tabSize: 2,
 		fontFamily: 'monospace',
 
-		// grammer
-		// grammer: grammer,
-		// scope: 0,
-
 		// extensions
 		package: {
-		// 	'default-theme': theme({
-		// 		comment: {
-		// 			other: 'gray'
-		// 		},
-		// 		string: {
-		// 			other: 'green',
-		// 			double: 'green'
-		// 		},
-		// 		keyword: {
-		// 			other: 'black',
-		// 			operator: 'red'
-		// 		},
-		// 		constant: {
-		// 			other: 'purple',
-		// 			numeric: 'blue'
-		// 		}
-		// 	})
+			// 	'default-theme': theme({
+			// 		comment: {
+			// 			other: 'gray'
+			// 		},
+			// 		string: {
+			// 			other: 'green',
+			// 			double: 'green'
+			// 		},
+			// 		keyword: {
+			// 			other: 'black',
+			// 			operator: 'red'
+			// 		},
+			// 		constant: {
+			// 			other: 'purple',
+			// 			numeric: 'blue'
+			// 		}
+			// 	})
 		}
 	}
 
@@ -697,9 +695,43 @@
 	 * @return {number}
 	 */
 	function javascriptGrammer (keys, type, hash, index) {
-		// @todo
-		// var {keyword, storage, string, constant} = grammer
-		return hash + index + type
+		var {keyword, storage, string, constant, variable, support} = grammer
+
+		switch (this.mode) {
+			case string.single:
+				if (hash === string.single) {
+					this.mode = 0
+					return keyword.operator
+				} else {
+					return string.single
+				}
+		}
+
+		switch (hash) {
+			case 3559070:
+				return variable.special
+			case 3360570672:
+			case 1380938712:
+				return storage.type
+			case 39:
+				this.mode = string.single
+			case 40:
+			case 41:
+			case 59:
+			case 46:
+			case 43:
+			case 44:
+				return keyword.operator
+		}
+
+		if (keys[index+1] === 40) {
+			if (keys[index-1] === 46 && keys[index-2] === 2390824) {
+				return support.function
+			}
+			return variable.other
+		}
+
+		return keyword.other
 	}
 
 	/**
@@ -825,6 +857,7 @@
 				heap.move(-(heap.pre+heap.post))
 				console.log('move(warm):', performance.now()-begin, 'ms')
 				console.log('')
+				heap.move(60)
 			}
 
 			{
@@ -855,16 +888,16 @@
 				console.log('tokenize(cold):', performance.now()-begin, 'ms')
 
 				// warmup
-				heap.tokenize()
-				heap.tokenize()
-				heap.tokenize()
-				heap.tokenize()
-				heap.tokenize()
+				// heap.tokenize()
+				// heap.tokenize()
+				// heap.tokenize()
+				// heap.tokenize()
+				// heap.tokenize()
 
-				// tokenize: warm
-				begin = performance.now()
-				heap.tokenize()
-				console.log('tokenize(warm):', performance.now()-begin, 'ms')
+				// // tokenize: warm
+				// begin = performance.now()
+				// heap.tokenize()
+				// console.log('tokenize(warm):', performance.now()-begin, 'ms')
 				console.log('')
 			}
 
@@ -875,17 +908,17 @@
 				console.log('render(cold):', performance.now()-begin, 'ms')
 
 				// warmup
-				heap.render()
-				heap.render()
-				heap.render()
-				heap.render()
-				heap.render()
+				// heap.render()
+				// heap.render()
+				// heap.render()
+				// heap.render()
+				// heap.render()
 
-				// render: warm
-				begin = performance.now()
-				heap.render()
-				console.log('render(warm):', performance.now()-begin, 'ms')
-				console.log('')
+				// // render: warm
+				// begin = performance.now()
+				// heap.render()
+				// console.log('render(warm):', performance.now()-begin, 'ms')
+				// console.log('')
 			}
 
 			{
@@ -918,6 +951,8 @@
 
 		{
 			var heap = new Editor(0, 0, 0, window.innerWidth, window.innerHeight)
+			heap.context = context
+			heap.canvas = canvas
 
 			// heap.set({
 				// language: 'js',
@@ -939,9 +974,9 @@
 
 		{
 			// var file = '.log/test.ts'
-			// var file = '.log/checker.ts'
+			var file = '.log/checker.ts'
 			// var file = '.log/sqlite3.c'
-			var file = 'https://raw.githubusercontent.com/Microsoft/TypeScript/master/src/compiler/checker.ts'
+			// var file = 'https://raw.githubusercontent.com/Microsoft/TypeScript/master/src/compiler/checker.ts'
 
 			console.log('Fetching file: GET '+ file)
 			console.log('...')
