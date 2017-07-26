@@ -223,7 +223,7 @@
 			var line = this.line
 			var column = this.column
 
-			while (this.pre > 0 && (this.line === line || this.column > column)) {
+			while (this.pre > 0 && (this.line === line)) {
 				this.backward()
 			}
 		},
@@ -236,8 +236,8 @@
 			var line = this.line
 			var column = this.column
 
-			while (this.post > 0 && (this.line === line || this.column < column)) {
-				this.backward()
+			while (this.post > 0 && (this.line === line)) {
+				this.forward()
 			}
 		},
 		/**
@@ -528,6 +528,7 @@
 			if (this.context === null) {
 				return
 			} else {
+				this.clearRect()
 				this.context.font = this.fontSize + 'px ' + this.fontFamily
 				this.context.textBaseline = 'top'
 			}
@@ -630,6 +631,65 @@
 		 */
 		use: function use (name, value) {
 			return this.package[name] = value
+		},
+
+		handleEvent: function (event) {
+			switch (event.type) {
+				case 'keydown':
+					switch (event.keyCode) {
+						// up
+						case 38:
+							this.upward()
+							break
+						// down
+						case 40:
+							this.downward()
+							break
+						// left
+						case 37:
+							this.backward()
+							break
+						// right
+						case 39:
+							this.forward()
+							break
+						// enter
+						case 13:
+							this.insert(10)
+							break
+						// space
+						case 32:
+							this.insert(32)
+							break
+						// tab
+						case 9:
+							this.insert(9)
+							break
+						// backspace
+						case 8:
+							this.remove()
+							break
+						// cmd
+						case 91:
+						// ctrl
+						case 17:
+						// alt
+						case 18:
+						// shift
+						case 16:
+						// caplock
+						case 20:
+						// esc
+						case 27:
+							break
+						default:
+							this.insert(event.key.charCodeAt(0))
+					}
+					break
+			}
+
+			event.preventDefault()
+			this.render()
 		},
 
 		// static
@@ -972,8 +1032,10 @@
 			console.log(heap)
 		}
 
+		document.addEventListener('keydown', heap)
+
 		{
-			// var file = '.log/test.ts'
+			// var file = '.log/test.ts'dd
 			var file = '.log/checker.ts'
 			// var file = '.log/sqlite3.c'
 			// var file = 'https://raw.githubusercontent.com/Microsoft/TypeScript/master/src/compiler/checker.ts'
