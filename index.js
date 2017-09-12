@@ -1036,9 +1036,9 @@
 
 		{
 			// var file = '.log/test.ts'dd
-			var file = '.log/checker.ts'
+			// var file = '.log/checker.ts'
 			// var file = '.log/sqlite3.c'
-			// var file = 'https://raw.githubusercontent.com/Microsoft/TypeScript/master/src/compiler/checker.ts'
+			var file = 'https://raw.githubusercontent.com/Microsoft/TypeScript/master/src/compiler/checker.ts'
 
 			console.log('Fetching file: GET '+ file)
 			console.log('...')
