@@ -1,7 +1,5 @@
 function createCanvas(width, height) {
   return Object.assign(document.createElement('canvas'), {
-  	width: width * devicePixelRatio,
-  	height: width * devicePixelRatio,
   	style: `width:${width};height:${height};`
   })
 }
