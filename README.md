@@ -1,43 +1,10 @@
 # Gap
 
-An extendable text edtor written in JavaScript rendering to a Canvas context.
+An extendable gap buffer based text editor written in JavaScript run in a web worker, rendering to canvas through offscreen canvas completely of the main thread.
 
-The goal is to write a highlighy extendable editor that any other editor could in theory be built out of.
+The goal is to write the fastest, smallest(3-4kb), most memory efficent extendable code editor written in JavaScript.
 
-Demo – [https://rawgit.com/thysultan/gap.js/master/index.html](https://rawgit.com/thysultan/gap.js/master/index.html).
+The previous [Demo](https://rawgit.com/thysultan/gap.js/master/index.html) used to stress test using `300,000` lines, `5,556,000` characters or around `5.5MB` which was all rendered in 4ms.
 
-The current demo is a stress test using `300,000` lines, `5,556,000` characters which lands around `5.5MB`. 
+The previous demo use to render on the main thread not using offscreen canvas. There's currently no benchmark for the current work in progress, that said rendering is a constant time operation so the number of lines or characters in a document do not have much meaning except if you have a 300,000 "pixel" 79 meter tall display: which in present-tense(2022) doesn't exist.
 
-It stree tests
-
-1. Time it takes to insert the whole document into the buffer.
-2. Time it takes to move the cursor from the end to the beginning of the document
-3. Time it takes to tokenize the whole document
-4. Time it takes to convert the whole document back into a string
-5. Time it takes to convert the whole document into an array of bytes
-
-All the tests are run twice, once in a cold(first function call) run the second time after running the respective
-functions 5 times.
-
-For the purpose of the stress test the test intentionally avoids viewport based optimizations like draw distance.
-
-With the draw distance optimization enabled tokenization takes 0.160(warm) ms 8.049(cold) ms
-Rendering to canvas takes ~4ms(cold), haven't yet benched a warm run for rendering.
-
-## Todos
-
-1. Implement common editor features
-2. Implement more complex editor features
-3. Expose an unlimited lookbehind primitive for syntax highlighters
-4. Expose other primitives to make creating syntax highlighters easier
-
-## Code
-
-The editor is at it's core one class that can be extended to build an editor or used as a default editor.
-
-Time will tell how long it will take to reach feature parity with popular editors,
-though at the moment many of the building block primitives for what is expected of modern text editor is in some way taken into consideration at the core of it.
-
-## Contributions
-
-Any contributions welcome 
